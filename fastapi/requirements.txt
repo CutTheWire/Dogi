@@ -1,0 +1,9 @@
+fastapi
+uvicorn
+langchain
+langchain_community
+vllm --extra-index-url https://download.pytorch.org/whl/cu121
+torch
+transformers
+huggingface_hub
+python-dotenv

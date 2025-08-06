@@ -1,0 +1,5 @@
+# CUDA 관련 패키지
+pynvml
+
+# ExLlamaV2는 PyPI에서 설치
+exllamav2
