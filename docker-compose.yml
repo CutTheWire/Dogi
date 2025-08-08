@@ -50,9 +50,9 @@ services:
       - "80:80"
     volumes:
       - python-libs:/opt/python-libs:ro
-      - ${PWD}/fastapi/ai_model/QuantFactory:/app/fastapi/ai_model/QuantFactory:rw
-      - ${PWD}/fastapi/logs:/app/logs:rw
-      - ${PWD}/fastapi/src/.env:/app/.env:ro
+      - ./fastapi/ai_model/QuantFactory:/app/fastapi/ai_model/QuantFactory:rw
+      - ./fastapi/logs:/app/logs:rw
+      - ./fastapi/src/.env:/app/.env:ro
     depends_on:
       chromadb:
         condition: service_healthy
@@ -61,10 +61,10 @@ services:
     deploy:
       resources:
         limits:
-          memory: 8G      # 메모리 제한 추가
-          cpus: '4.0'     # CPU 제한 추가
+          memory: 8G
+          cpus: '4.0'
         reservations:
-          memory: 4G      # 최소 메모리 보장
+          memory: 4G
           devices:
             - driver: nvidia
               capabilities: [gpu]
@@ -76,7 +76,7 @@ services:
       - PYTHONUNBUFFERED=1
       - PYTHONDONTWRITEBYTECODE=1
       - OPENAI_API_KEY=${OPENAI_API_KEY}
-      - UVICORN_HTTP=h11  # HTTP/1.1 강제
+      - UVICORN_HTTP=h11
       - CHROMA_HOST=chromadb
       - CHROMA_PORT=8000
 
