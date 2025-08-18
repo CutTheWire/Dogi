@@ -15,7 +15,7 @@ services:
         pip install --target=/opt/python-libs/lib/python3.11/site-packages -r requirements.txt
         CMAKE_ARGS='-DGGML_CUDA=ON' pip install --target=/opt/python-libs/lib/python3.11/site-packages llama-cpp-python --no-cache-dir --force-reinstall
         pip install --target=/opt/python-libs/lib/python3.11/site-packages https://github.com/oobabooga/llama-cpp-python-cuBLAS-wheels/releases/download/textgen-webui/llama_cpp_python_cuda-0.2.62+cu121-cp311-cp311-manylinux_2_31_x86_64.whl
-        pip install --target=/opt/python-libs/lib/python3.11/site-packages exllamav2 pynvml uvicorn chromadb
+        pip install --target=/opt/python-libs/lib/python3.11/site-packages exllamav2 pynvml uvicorn
         touch /opt/python-libs/.initialized
         echo 'Libraries installation completed!'
       else
@@ -29,17 +29,12 @@ services:
     ports:
       - "8000:8000"
     volumes:
-      - chroma-data:/chroma/chroma
+      - chroma-data:/data
     environment:
       - IS_PERSISTENT=TRUE
-      - PERSIST_DIRECTORY=/chroma/chroma
+      - PERSIST_DIRECTORY=/data
       - ANONYMIZED_TELEMETRY=FALSE
     restart: unless-stopped
-    healthcheck:
-      test: ["CMD", "curl", "-f", "http://localhost:8000/api/v1/heartbeat"]
-      interval: 30s
-      timeout: 10s
-      retries: 3
 
   fastapi:
     build:
@@ -50,14 +45,11 @@ services:
       - "80:80"
     volumes:
       - python-libs:/opt/python-libs:ro
-      - ./fastapi/ai_model/QuantFactory:/app/fastapi/ai_model/QuantFactory:rw
+      - ./fastapi/models/:/app/fastapi/models/:rw
       - ./fastapi/logs:/app/logs:rw
       - ./fastapi/src/.env:/app/.env:ro
     depends_on:
-      chromadb:
-        condition: service_healthy
-      python-libs-init:
-        condition: service_completed_successfully
+      - python-libs-init
     deploy:
       resources:
         limits:
@@ -82,4 +74,6 @@ services:
 
 volumes:
   python-libs:
+    driver: local
   chroma-data:
+    driver: local

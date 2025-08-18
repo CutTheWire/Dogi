@@ -4,7 +4,7 @@ FastAPI 애플리케이션에서 발생하는 예외를 처리하는 모듈입�
 import uuid
 import os
 import logging
-import logging.handlers  # 이 줄을 추가
+import logging.handlers
 import traceback
 from pathlib import Path
 from datetime import datetime

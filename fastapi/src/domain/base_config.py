@@ -97,3 +97,4 @@ class ProcessingRequest:
     future: asyncio.Future
     created_at: float
     user_id: str
+

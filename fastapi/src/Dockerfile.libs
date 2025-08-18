@@ -1,4 +1,4 @@
-FROM chatbotai-base:latest
+FROM dogi-base:latest
 
 WORKDIR /app
 
