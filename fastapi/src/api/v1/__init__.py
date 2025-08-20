@@ -1,6 +1,6 @@
 from fastapi import APIRouter
 
-from . import llm_controller, mongodb_controller
+from . import llm_controller, auth_controller
 
 version_1 = APIRouter()
 
@@ -11,7 +11,7 @@ version_1.include_router(
 )
 
 version_1.include_router(
-    mongodb_controller.mongodb_router,
-    prefix="/mongodb",
-    tags=["MongoDB Router"]
-)   
+    auth_controller.auth_router,
+    prefix="/Auth",
+    tags=["Auth Router"]
+)

@@ -23,6 +23,24 @@ services:
       fi
       "
 
+  mysql:
+    build:
+      context: ./mysql
+    container_name: mysql
+    ports:
+      - "13306:3306"
+    environment:
+      MYSQL_ROOT_PASSWORD: ${MYSQL_ROOT_PASSWORD}
+      MYSQL_DATABASE: ${MYSQL_DATABASE}
+      MYSQL_USER: ${MYSQL_USER}
+      MYSQL_PASSWORD: ${MYSQL_PASSWORD}
+      TZ: Asia/Seoul
+    volumes:
+      - mysql-data:/var/lib/mysql
+      - ./mysql/init.sql:/docker-entrypoint-initdb.d/init.sql
+      - ./mysql/log.cnf:/etc/mysql/conf.d/log.cnf
+    restart: unless-stopped
+
   chromadb:
     image: chromadb/chroma:latest
     container_name: chromadb
@@ -35,6 +53,22 @@ services:
       - PERSIST_DIRECTORY=/data
       - ANONYMIZED_TELEMETRY=FALSE
     restart: unless-stopped
+
+  mongodb:
+    restart: unless-stopped
+    build:
+      context: ./mongo
+    ports:
+      - "27017:27017"
+    environment:
+      MONGO_INITDB_ROOT_USERNAME: ${MONGO_ADMIN_USER}
+      MONGO_INITDB_ROOT_PASSWORD: ${MONGO_ADMIN_PASSWORD}
+      MONGO_DATABASE: ${MONGO_DATABASE}
+      TZ: Asia/Seoul  # 한국 시간대 설정
+    volumes:
+      - ./mongo/data:/data/db
+      - ./logs:/var/logs/mongodb
+      - ./mongo/.env:/docker-entrypoint-initdb.d/.env
 
   fastapi:
     build:
@@ -50,6 +84,8 @@ services:
       - ./fastapi/src/.env:/app/.env:ro
     depends_on:
       - python-libs-init
+      - mongodb
+      - mysql
     deploy:
       resources:
         limits:
@@ -71,9 +107,25 @@ services:
       - UVICORN_HTTP=h11
       - CHROMA_HOST=chromadb
       - CHROMA_PORT=8000
+      - CHROMA_COLLECTION_NAME=vet_medical_data
+      - MONGO_ADMIN_USER=${MONGO_ADMIN_USER}
+      - MONGO_ADMIN_PASSWORD=${MONGO_ADMIN_PASSWORD}
+      - MONGO_DATABASE=${MONGO_DATABASE}
+      - MONGO_HOST=mongodb
+      - MONGO_PORT=27017
+      - MYSQL_HOST=mysql
+      - MYSQL_PORT=3306
+      - MYSQL_DATABASE=${MYSQL_DATABASE}
+      - MYSQL_USER=${MYSQL_USER}
+      - MYSQL_PASSWORD=${MYSQL_PASSWORD}
+      - JWT_SECRET_KEY=${JWT_SECRET_KEY}
+      - JWT_ALGORITHM=${JWT_ALGORITHM}
+      - ACCESS_TOKEN_EXPIRE_MINUTES=${ACCESS_TOKEN_EXPIRE_MINUTES}
 
 volumes:
   python-libs:
     driver: local
   chroma-data:
+    driver: local
+  mysql-data:
     driver: local

@@ -4,7 +4,7 @@ import datetime
 
 from pathlib import Path
 from dotenv import load_dotenv
-from typing import Dict, List
+from typing import Dict, List, Optional
 from motor.motor_asyncio import AsyncIOMotorClient
 from pymongo.errors import PyMongoError
 
@@ -49,8 +49,8 @@ class MongoDBHandler:
         """
         데이터베이스 이름 목록을 반환합니다.
         
-        :return: 데이터베이스 이름 리스트
-        :raises ErrorTools.InternalServerErrorException: 데이터베이스 이름을 가져오는 도중 문제가 발생할 경우
+        Returns:
+            List[str]: 데이터베이스 이름 리스트
         """
         try:
             return await self.client.list_database_names()
@@ -63,10 +63,11 @@ class MongoDBHandler:
         """
         데이터베이스의 컬렉션 이름 목록을 반환합니다.
         
-        :param database_name: 데이터베이스 이름
-        :return: 컬렉션 이름 리스트
-        :raises ErrorTools.NotFoundException: 데이터베이스가 존재하지 않을 경우
-        :raises ErrorTools.InternalServerErrorException: 컬렉션 이름을 가져오는 도중 문제가 발생할 경우
+        Args:
+            database_name (str): 데이터베이스 이름
+        
+        Returns:
+            List[str]: 컬렉션 이름 리스트
         """
         db_names = await self.get_db()
         if (database_name not in db_names):
@@ -78,243 +79,386 @@ class MongoDBHandler:
         except Exception as e:
             raise ErrorTools.InternalServerErrorException(detail=f"Unexpected error: {str(e)}")
 
-    async def remove_log(self, user_id: str, document_id: str, selected_count: int, router: str) -> str:
+# LLM Session Management Methods ----------------------------------------------------------------------------------
+    async def create_llm_session(self, user_id: str) -> str:
         """
-        특정 대화의 최신 대화 ~ 선택한 대화를 지웁니다.
+        LLM 세션을 생성합니다.
         
-        :param user_id: 사용자 ID
-        :param document_id: 문서의 ID
-        :param selected_count: 선택한 대화의 인덱스
-        :return: 성공 메시지
-        :raises ErrorTools.NotFoundException: 문서가 존재하지 않을 경우
-        :raises ErrorTools.InternalServerErrorException: 데이터를 제거하는 도중 문제가 발생할 경우
+        Args:
+            user_id (str): 사용자 ID
+        
+        Returns:
+            str: 생성된 세션 ID
         """
         try:
-            collection = self.db[f'{router}_log_{user_id}']
-            document = await collection.find_one({"id": document_id})
-
-            if document is None:
-                raise ErrorTools.NotFoundException(f"No document found with ID: {document_id}")
-
-            # 'value' 필드에서 삭제할 항목 필터링 (selected_count 이상)
-            value_to_remove = [item for item in document.get("value", []) if item.get("index") >= selected_count]
-
-            if not value_to_remove:
-                raise ErrorTools.NotFoundException(f"No data found to remove starting from index: {selected_count}")
-
-            # 해당 index부터 마지막 데이터까지 삭제
-            result = await collection.update_one(
-                {"id": document_id},
-                {"$pull": {"value": {"index": {"$gte": selected_count}}}}
-            )
-
-            if result.modified_count > 0:
-                return f"Successfully removed data from index: {selected_count} to the end in document with ID: {document_id}"
-            else:
-                raise ErrorTools.NotFoundException(f"No data removed for document with ID: {document_id}")
-        except PyMongoError as e:
-            raise ErrorTools.InternalServerErrorException(detail=f"Error removing chatlog value: {str(e)}")
-        except Exception as e:
-            raise ErrorTools.InternalServerErrorException(detail=f"Unexpected error: {str(e)}")
-
-    async def remove_collection(self, user_id: str, document_id: str, router: str) -> str:
-        """
-        특정 대화방을 지웁니다.
-        
-        :param user_id: 사용자 ID
-        :param document_id: 문서의 ID
-        :return: 성공 메시지
-        :raises ErrorTools.NotFoundException: 문서가 존재하지 않을 경우
-        :raises ErrorTools.InternalServerErrorException: 데이터를 제거하는 도중 문제가 발생할 경우
-        """
-        try:
-            collection = self.db[f'{router}_log_{user_id}']
-            document = await collection.find_one({"id": document_id})
-
-            if document is None:
-                raise ErrorTools.NotFoundException(f"No document found with ID: {document_id}")
-
-            remove_collection = await collection.delete_one({"id": document_id})  # 수정: 조건으로 ID 사용
-
-            if remove_collection.deleted_count == 0:
-                raise ErrorTools.NotFoundException(f"No data found to remove document: {document_id}")
-            elif remove_collection.deleted_count > 0:
-                return f"Successfully deleted document with ID: {document_id}"
-        except PyMongoError as e:
-            raise ErrorTools.InternalServerErrorException(detail=f"Error deleting document: {str(e)}")
-        except Exception as e:
-            raise ErrorTools.InternalServerErrorException(detail=f"Unexpected error: {str(e)}")
-        
-# Office Collection---------------------------------------------------------------------------------------------------
-    async def create_office_collection(self, user_id: str, router: str) -> str:
-        """
-        사용자 ID에 기반한 채팅 로그 컬렉션을 생성합니다.
-        
-        :param user_id: 사용자 ID
-        :return: 생성된 문서의 UUID
-        :raises ErrorTools.InternalServerErrorException: 채팅 로그 컬렉션을 생성하는 도중 문제가 발생할 경우
-        """
-        try:
-            collection_name = f'{router}_log_{user_id}'
+            collection_name = f'llm_sessions_{user_id}'
             collection = self.db[collection_name]
-            document_id = str(uuid.uuid4())
-            document = {
-                "id": document_id,
-                "value": []
+            session_id = str(uuid.uuid4())
+            current_time = datetime.datetime.now()
+            
+            session_document = {
+                "session_id": session_id,
+                "title": "",  # 첫 메시지로부터 생성됨
+                "messages": [],
+                "created_at": current_time,
+                "updated_at": current_time
             }
-            await collection.insert_one(document)
-            return document_id
+            await collection.insert_one(session_document)
+            return session_id
         except PyMongoError as e:
-            raise ErrorTools.InternalServerErrorException(detail=f"Error creating chatlog collection: {str(e)}")
+            raise ErrorTools.InternalServerErrorException(detail=f"Error creating LLM session: {str(e)}")
         except Exception as e:
             raise ErrorTools.InternalServerErrorException(detail=f"Unexpected error: {str(e)}")
-        
 
-    async def add_office_log(self, user_id: str, document_id: str, new_data: Dict) -> str:
+    async def get_llm_sessions(self, user_id: str) -> List[Dict]:
         """
-        특정 문서의 'value' 필드에 JSON 데이터를 추가합니다.
+        사용자의 LLM 세션 목록을 반환합니다.
         
-        :param user_id: 사용자 ID
-        :param document_id: 문서의 ID
-        :param new_data: 추가할 JSON 데이터
-        :return: 성공 메시지
-        :raises ErrorTools.NotFoundException: 문서가 존재하지 않을 경우
-        :raises ErrorTools.InternalServerErrorException: 데이터를 추가하는 도중 문제가 발생할 경우
+        Args:
+            user_id (str): 사용자 ID
+        
+        Returns:
+            List[Dict]: LLM 세션 목록
         """
         try:
-            collection = self.db[f'office_log_{user_id}']
-            document = await collection.find_one({"id": document_id})
-            if document is None:
-                raise ErrorTools.NotFoundException(f"No document found with ID: {document_id}")
+            collection_name = f'llm_sessions_{user_id}'
+            collection = self.db[collection_name]
             
-            # 'id', 'user_id' 필드를 제외한 나머지 필드만 사용
-            new_data_filtered = {
-                key: value for key, value in new_data.items() if key not in ['id', 'user_id']
-            }
+            sessions = await collection.find(
+                {},
+                {
+                    "_id": 0,
+                    "session_id": 1,
+                    "title": 1,
+                    "created_at": 1,
+                    "updated_at": 1
+                }
+            ).sort("updated_at", -1).to_list(None)
+            
+            return sessions
+        except PyMongoError as e:
+            raise ErrorTools.InternalServerErrorException(detail=f"Error retrieving LLM sessions: {str(e)}")
+        except Exception as e:
+            raise ErrorTools.InternalServerErrorException(detail=f"Unexpected error: {str(e)}")
 
-            # 현재 날짜 시간 정보 추가
-            current_time = datetime.datetime.now().strftime("%Y-%m-%d %H:%M:%S")
-            new_data_filtered["timestamp"] = current_time
+    async def get_llm_session(self, user_id: str, session_id: str) -> Dict:
+        """
+        특정 LLM 세션 정보를 반환합니다.
+        
+        Args:
+            user_id (str): 사용자 ID
+            session_id (str): 세션 ID
+        
+        Returns:
+            Dict: LLM 세션 정보
+        """
+        try:
+            collection_name = f'llm_sessions_{user_id}'
+            collection = self.db[collection_name]
+            
+            session = await collection.find_one(
+                {"session_id": session_id},
+                {
+                    "_id": 0,
+                    "session_id": 1,
+                    "title": 1,
+                    "created_at": 1,
+                    "updated_at": 1
+                }
+            )
+            
+            if session is None:
+                raise ErrorTools.NotFoundException(f"Session not found with ID: {session_id}")
+                
+            return session
+        except PyMongoError as e:
+            raise ErrorTools.InternalServerErrorException(detail=f"Error retrieving LLM session: {str(e)}")
+        except Exception as e:
+            raise ErrorTools.InternalServerErrorException(detail=f"Unexpected error: {str(e)}")
 
-            new_index = len(document['value']) + 1
-            new_data_with_index = {
-                "index": new_index,
-                **new_data_filtered
+    async def delete_llm_session(self, user_id: str, session_id: str) -> str:
+        """
+        LLM 세션을 삭제합니다.
+
+        Args:
+            user_id (str): 사용자 ID
+            session_id (str): 세션 ID
+        
+        Returns:
+            str: 성공 메시지
+        """
+        try:
+            collection_name = f'llm_sessions_{user_id}'
+            collection = self.db[collection_name]
+            
+            result = await collection.delete_one({"session_id": session_id})
+            
+            if result.deleted_count == 0:
+                raise ErrorTools.NotFoundException(f"Session not found with ID: {session_id}")
+                
+            return f"Successfully deleted session with ID: {session_id}"
+        except PyMongoError as e:
+            raise ErrorTools.InternalServerErrorException(detail=f"Error deleting LLM session: {str(e)}")
+        except Exception as e:
+            raise ErrorTools.InternalServerErrorException(detail=f"Unexpected error: {str(e)}")
+
+    async def add_llm_message(self,
+            user_id: str,
+            session_id: str,
+            content: str,
+            model_id: str,
+            answer: str
+        ) -> Dict:
+        """
+        LLM 세션에 메시지를 추가합니다.
+        
+        Args:
+            user_id (str): 사용자 ID
+            session_id (str): 세션 ID
+            content (str): 사용자 메시지 내용
+            model_id (str): 사용된 모델 ID
+            answer (str): AI 응답 내용
+        
+        Returns:
+            Dict: 추가된 메시지 정보
+        """
+        try:
+            collection_name = f'llm_sessions_{user_id}'
+            collection = self.db[collection_name]
+            
+            session = await collection.find_one({"session_id": session_id})
+            if session is None:
+                raise ErrorTools.NotFoundException(f"Session not found with ID: {session_id}")
+            
+            current_time = datetime.datetime.now()
+            message_idx = len(session.get("messages", [])) + 1
+            
+            new_message = {
+                "message_idx": str(message_idx),
+                "content": content,
+                "model_id": model_id,
+                "answer": answer,
+                "created_at": current_time,
+                "updated_at": current_time
             }
+            
+            # 첫 번째 메시지인 경우 제목 생성
+            title_update = {}
+            if message_idx == 1:
+                title = content[:50] + "..." if len(content) > 50 else content
+                title_update["title"] = title
+            
             result = await collection.update_one(
-                {"id": document_id},
-                {"$push": {"value": new_data_with_index}}
+                {"session_id": session_id},
+                {
+                    "$push": {"messages": new_message},
+                    "$set": {**title_update, "updated_at": current_time}
+                }
             )
-
-            if result.modified_count > 0:
-                return f"Successfully added data to document with ID: {document_id}"
-            else:
-                raise ErrorTools.NotFoundException(f"No document found with ID: {document_id} or no data added.")
+            
+            if result.modified_count == 0:
+                raise ErrorTools.InternalServerErrorException("Failed to add message to session")
+                
+            return new_message
         except PyMongoError as e:
-            raise ErrorTools.InternalServerErrorException(detail=f"Error adding chatlog value: {str(e)}")
+            raise ErrorTools.InternalServerErrorException(detail=f"Error adding LLM message: {str(e)}")
         except Exception as e:
             raise ErrorTools.InternalServerErrorException(detail=f"Unexpected error: {str(e)}")
 
-    async def update_office_log(self, user_id: str, document_id: str, new_Data: Dict):
+    async def get_llm_messages(self, user_id: str, session_id: str) -> List[Dict]:
         """
-        특정 문서의 'value' 필드 중 가장 큰 인덱스(최신 대화)의 데이터를 수정합니다.
-
-        :param user_id: 사용자 ID
-        :param document_id: 문서의 ID
-        :param new_Data: 업데이트할 데이터
-        :return: 성공 메시지
-        :raises ErrorTools.NotFoundException: 문서가 존재하지 않을 경우
-        :raises ErrorTools.InternalServerErrorException: 데이터를 수정하는 도중 문제가 발생할 경우
+        LLM 세션의 메시지 목록을 반환합니다.
+        
+        Args:
+            user_id (str): 사용자 ID
+            session_id (str): 세션 ID
+        
+        Returns:
+            List[Dict]: LLM 세션 메시지 목록
         """
         try:
-            collection = self.db[f'office_log_{user_id}']
-            document = await collection.find_one({"id": document_id})
+            collection_name = f'llm_sessions_{user_id}'
+            collection = self.db[collection_name]
             
-            if document is None:
-                raise ErrorTools.NotFoundException(f"No document found with ID: {document_id}")
-                
-            value_list = document.get("value", [])
-            
-            if not value_list:
-                raise ErrorTools.NotFoundException(f"No conversations found in document with ID: {document_id}")
-                
-            # None 값을 안전하게 처리하는 정렬 키 함수
-            def safe_get_index(item):
-                index = item.get("index")
-                # None 값이거나 정수가 아닌 경우 기본값으로 0 반환
-                return index if index is not None else 0
-                
-            # 가장 큰 인덱스(최신 대화) 찾기
-            sorted_value_list = sorted(value_list, key=safe_get_index)
-            if not sorted_value_list:
-                raise ErrorTools.NotFoundException(f"No valid conversations found in document with ID: {document_id}")
-                
-            latest_item = sorted_value_list[-1]  # 가장 큰 인덱스를 가진 항목
-            latest_index = latest_item.get("index")
-            
-            if latest_index is None:
-                raise ErrorTools.NotFoundException(f"Latest conversation has no valid index in document with ID: {document_id}")
-
-            # 'id', 'user_id' 필드를 제외한 나머지 필드만 사용
-            update_data_filtered = {
-                key: value for key, value in new_Data.items() if key not in ['id', 'user_id']
-            }
-            
-            # 현재 날짜 시간 정보 추가
-            current_time = datetime.datetime.now().strftime("%Y-%m-%d %H:%M:%S")
-            update_data_filtered["timestamp"] = current_time
-            
-            # 최신 대화에 대한 업데이트 데이터 준비
-            update_data_with_index = {
-                "index": latest_index,
-                **update_data_filtered
-            }
-            
-            # 최신 대화 삭제 후 업데이트된 데이터 추가
-            result_pull = await collection.update_one(
-                {"id": document_id},
-                {"$pull": {"value": {"index": latest_index}}}
+            session = await collection.find_one(
+                {"session_id": session_id},
+                {"_id": 0, "messages": 1}
             )
             
-            result_push = await collection.update_one(
-                {"id": document_id},
-                {"$push": {"value": update_data_with_index}}
-            )
-            
-            if result_pull.modified_count > 0 or result_push.modified_count > 0:
-                return f"Successfully updated latest conversation (index: {latest_index}) in document with ID: {document_id}"
-            else:
-                raise ErrorTools.NotFoundException(f"Failed to update data in document with ID: {document_id}")
+            if session is None:
+                raise ErrorTools.NotFoundException(f"Session not found with ID: {session_id}")
                 
+            return session.get("messages", [])
         except PyMongoError as e:
-            raise ErrorTools.InternalServerErrorException(detail=f"Error updating chatlog value: {str(e)}")
+            raise ErrorTools.InternalServerErrorException(detail=f"Error retrieving LLM messages: {str(e)}")
         except Exception as e:
             raise ErrorTools.InternalServerErrorException(detail=f"Unexpected error: {str(e)}")
-        
-    async def get_offic_log(self, user_id: str, document_id: str, router: str) -> List[Dict]:
+
+    async def update_last_llm_message(self,
+            user_id: str,
+            session_id: str,
+            content: str,
+            model_id: str,
+            answer: str
+        ) -> Dict:
         """
-        특정 문서의 'value' 필드를 반환합니다.
+        LLM 세션의 마지막 메시지를 수정합니다.
         
-        :param user_id: 사용자 ID
-        :param document_id: 문서의 ID
-        :return: 해당 문서의 'value' 필드 데이터 또는 빈 배열
-        :raises ErrorTools.NotFoundException: 문서가 존재하지 않을 경우
-        :raises ErrorTools.InternalServerErrorException: 데이터를 가져오는 도중 문제가 발생할 경우
+        Args:
+            user_id (str): 사용자 ID
+            session_id (str): 세션 ID
+            content (str): 수정된 메시지 내용
+            model_id (str): 사용된 모델 ID
+            answer (str): 수정된 AI 응답 내용
+        
+        Returns:
+            Dict: 수정된 메시지 정보
         """
         try:
-            collection = self.db[f'{router}_log_{user_id}']
-            document = await collection.find_one({"id": document_id})
-
-            if document is None:
-                raise ErrorTools.NotFoundException(f"No document found with ID: {document_id}")
-
-            value_list = document.get("value", [])
-
-            sorted_value_list = sorted(value_list, key=lambda x:x.get("index"))
-
-            # document에서 value를 반환
-            return sorted_value_list
+            collection_name = f'llm_sessions_{user_id}'
+            collection = self.db[collection_name]
+            
+            session = await collection.find_one({"session_id": session_id})
+            if session is None:
+                raise ErrorTools.NotFoundException(f"Session not found with ID: {session_id}")
+            
+            messages = session.get("messages", [])
+            if not messages:
+                raise ErrorTools.NotFoundException(f"No messages found in session: {session_id}")
+            
+            current_time = datetime.datetime.now()
+            last_message_idx = len(messages) - 1
+            
+            # 마지막 메시지 업데이트
+            updated_message = {
+                "message_idx": messages[last_message_idx]["message_idx"],
+                "content": content,
+                "model_id": model_id,
+                "answer": answer,
+                "created_at": messages[last_message_idx]["created_at"],
+                "updated_at": current_time
+            }
+            
+            result = await collection.update_one(
+                {"session_id": session_id},
+                {
+                    "$set": {
+                        f"messages.{last_message_idx}": updated_message,
+                        "updated_at": current_time
+                    }
+                }
+            )
+            
+            if result.modified_count == 0:
+                raise ErrorTools.InternalServerErrorException("Failed to update last message")
+                
+            return updated_message
         except PyMongoError as e:
-            raise ErrorTools.InternalServerErrorException(detail=f"Error retrieving chatlog value: {str(e)}")
+            raise ErrorTools.InternalServerErrorException(detail=f"Error updating LLM message: {str(e)}")
+        except Exception as e:
+            raise ErrorTools.InternalServerErrorException(detail=f"Unexpected error: {str(e)}")
+
+    async def delete_last_llm_message(self, user_id: str, session_id: str) -> str:
+        """
+        LLM 세션의 마지막 메시지를 삭제합니다.
+        
+        Args:
+            user_id (str): 사용자 ID
+            session_id (str): 세션 ID
+        
+        Returns:
+            str: 성공 메시지
+        """
+        try:
+            collection_name = f'llm_sessions_{user_id}'
+            collection = self.db[collection_name]
+            
+            session = await collection.find_one({"session_id": session_id})
+            if session is None:
+                raise ErrorTools.NotFoundException(f"Session not found with ID: {session_id}")
+            
+            messages = session.get("messages", [])
+            if not messages:
+                raise ErrorTools.NotFoundException(f"No messages found in session: {session_id}")
+            
+            current_time = datetime.datetime.now()
+            
+            result = await collection.update_one(
+                {"session_id": session_id},
+                {
+                    "$pop": {"messages": 1},
+                    "$set": {"updated_at": current_time}
+                }
+            )
+            
+            if result.modified_count == 0:
+                raise ErrorTools.InternalServerErrorException("Failed to delete last message")
+                
+            return f"Successfully deleted last message from session: {session_id}"
+        except PyMongoError as e:
+            raise ErrorTools.InternalServerErrorException(detail=f"Error deleting LLM message: {str(e)}")
+        except Exception as e:
+            raise ErrorTools.InternalServerErrorException(detail=f"Unexpected error: {str(e)}")
+
+    async def regenerate_last_llm_message(self,
+            user_id: str,
+            session_id: str,
+            model_id: str,
+            answer: str
+        ) -> Dict:
+        """
+        LLM 세션의 마지막 메시지를 재생성합니다.
+        
+        Args:
+            user_id (str): 사용자 ID
+            session_id (str): 세션 ID
+            model_id (str): 사용된 모델 ID
+            answer (str): 새로운 AI 응답 내용
+        
+        Returns:
+            Dict: 재생성된 메시지 정보
+        """
+        try:
+            collection_name = f'llm_sessions_{user_id}'
+            collection = self.db[collection_name]
+            
+            session = await collection.find_one({"session_id": session_id})
+            if session is None:
+                raise ErrorTools.NotFoundException(f"Session not found with ID: {session_id}")
+            
+            messages = session.get("messages", [])
+            if not messages:
+                raise ErrorTools.NotFoundException(f"No messages found in session: {session_id}")
+            
+            current_time = datetime.datetime.now()
+            last_message_idx = len(messages) - 1
+            last_message = messages[last_message_idx]
+            
+            # 마지막 메시지의 답변만 업데이트
+            regenerated_message = {
+                "message_idx": last_message["message_idx"],
+                "content": last_message["content"],
+                "model_id": model_id,
+                "answer": answer,
+                "created_at": last_message["created_at"],
+                "updated_at": current_time
+            }
+            
+            result = await collection.update_one(
+                {"session_id": session_id},
+                {
+                    "$set": {
+                        f"messages.{last_message_idx}": regenerated_message,
+                        "updated_at": current_time
+                    }
+                }
+            )
+            
+            if result.modified_count == 0:
+                raise ErrorTools.InternalServerErrorException("Failed to regenerate last message")
+                
+            return regenerated_message
+        except PyMongoError as e:
+            raise ErrorTools.InternalServerErrorException(detail=f"Error regenerating LLM message: {str(e)}")
         except Exception as e:
             raise ErrorTools.InternalServerErrorException(detail=f"Unexpected error: {str(e)}")

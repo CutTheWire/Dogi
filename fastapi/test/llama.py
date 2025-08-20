@@ -1,5 +1,5 @@
 '''
-파일은 LlamaOfficeModel, BaseConfig.OfficePrompt 클래스를 정의하고 llama_cpp_cuda를 사용하여,
+파일은 LlamaModel, BaseConfig.OfficePrompt 클래스를 정의하고 llama_cpp_cuda를 사용하여,
 Meta-Llama-3.1-8B-Claude.Q4_0.gguf 모델을 사용하여 대화를 생성하는 데 필요한 모든 기능을 제공합니다.
 RAG(Retrieval-Augmented Generation) 기능이 추가되었습니다.
 '''
@@ -138,14 +138,14 @@ def build_llama3_prompt(character_info: BaseConfig.OfficePrompt) -> str:
 
     return prompt
 
-class LlamaOfficeModel:
+class LlamaModel:
     """
     RAG 기능을 갖춘 GGUF 포맷 llama-3-Korean-Bllossom-8B 모델 클래스
     벡터 검색을 통해 관련 의료 문서를 검색하고 이를 바탕으로 응답을 생성합니다.
     """
     def __init__(self, enable_rag: bool = True) -> None:
         """
-        LlamaOfficeModel 클래스 초기화 메소드
+        LlamaModel 클래스 초기화 메소드
         
         Args:
             enable_rag: RAG 기능 활성화 여부
@@ -169,7 +169,7 @@ class LlamaOfficeModel:
         if self.enable_rag:
             print(f"{BLUE}LOADING{RESET}:    RAG 시스템 초기화 중...")
             try:
-                self.vector_search = VectorClient.VectorSearchClient()
+                self.vector_search = VectorClient.VectorSearchHandler()
                 if self.vector_search.health_check():
                     print(f"{GREEN}SUCCESS{RESET}:   RAG 시스템 초기화 완료!")
                 else:
@@ -515,7 +515,7 @@ if __name__ == "__main__":
             builtins.print = quiet_print
             
             # 모델 초기화
-            model = LlamaOfficeModel(enable_rag=True)
+            model = LlamaModel(enable_rag=True)
             
             # print 함수 복원
             builtins.print = original_print

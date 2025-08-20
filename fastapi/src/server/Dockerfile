@@ -18,7 +18,7 @@ COPY src/server/ /app/src/server/
 COPY src/service/ /app/src/service/
 COPY src/core/ /app/src/core/
 
-# 프롬프트/설정
+# 프롬프트/설정 - 올바른 경로로 수정
 COPY prompt/ /app/prompt/
 
 # 환경 설정 (python-libs-init 볼륨 경로 포함)

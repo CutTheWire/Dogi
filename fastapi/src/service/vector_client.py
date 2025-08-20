@@ -2,10 +2,11 @@
 ChromaDB 벡터 검색 클라이언트
 RAG(Retrieval-Augmented Generation)를 위한 벡터 검색 기능 제공
 """
-from typing import List, Dict, Any, Optional, Tuple
+from typing import List, Dict, Any, Optional
 from chromadb.config import Settings
 from datetime import datetime
 from pathlib import Path
+from dotenv import load_dotenv
 
 import chromadb
 import os
@@ -19,7 +20,6 @@ logger = logging.getLogger(__name__)
 BASE_DIR = Path(__file__).resolve().parents[3]
 LOG_DIR = os.path.join(BASE_DIR, "logs")
 os.makedirs(LOG_DIR, exist_ok=True)
-
 
 class VectorDailyRotating(logging.handlers.BaseRotatingHandler):
     def __init__(self, dir_path: str, date_format: str = "%Y%m%d", encoding=None):
@@ -48,29 +48,22 @@ if not any(isinstance(h, VectorDailyRotating) for h in logger.handlers):
     _vf.setFormatter(_formatter)
     logger.addHandler(_vf)
 
-class VectorSearchClient:
+class VectorSearchHandler:
     """
     ChromaDB를 사용한 벡터 검색 클라이언트
     의료 데이터에서 관련 문서를 검색하여 LLM에게 컨텍스트 제공
     """
     
-    def __init__(
-        self, 
-        chroma_host: str = "localhost", 
-        chroma_port: int = 8000,
-        collection_name: str = "vet_medical_data"
-        ) -> None:
+    def __init__(self) -> None:
         """
         벡터 검색 클라이언트 초기화
-        
-        Args:
-            chroma_host: ChromaDB 호스트
-            chroma_port: ChromaDB 포트  
-            collection_name: 컬렉션 이름
         """
-        self.chroma_host = chroma_host
-        self.chroma_port = chroma_port
-        self.collection_name = collection_name
+        env_file_path = Path(__file__).resolve().parents[1] / ".env"
+        load_dotenv(env_file_path)
+        
+        self.chroma_host = os.getenv('CHROMA_HOST')
+        self.chroma_port = os.getenv('CHROMA_PORT')
+        self.collection_name = os.getenv('CHROMA_COLLECTION_NAME')
         self.connection_status = "NOT_CONNECTED"
         self.last_search_info = {}
         
@@ -79,11 +72,11 @@ class VectorSearchClient:
         logging.getLogger("chromadb").setLevel(logging.ERROR)
         
         try:
-            print(f"ChromaDB 연결 시도: {chroma_host}:{chroma_port}")
+            print(f"ChromaDB 연결 시도: {self.chroma_host}:{self.chroma_port}")
             
             self.client = chromadb.HttpClient(
-                host=chroma_host,
-                port=chroma_port,
+                host=self.chroma_host,
+                port=self.chroma_port,
                 settings=Settings(
                     allow_reset=True,
                     anonymized_telemetry=False
@@ -91,20 +84,20 @@ class VectorSearchClient:
             )
             
             # 컬렉션 가져오기
-            self.collection = self.client.get_collection(name=collection_name)
+            self.collection = self.client.get_collection(name=self.collection_name)
             
             # 연결 성공 시 정보 수집
             collection_count = self.collection.count()
             self.connection_status = "CONNECTED"
             
             print(f"ChromaDB 연결 성공!")
-            print(f"컬렉션: {collection_name}")
+            print(f"컬렉션: {self.collection_name}")
             print(f"문서 수: {collection_count:,}개")
             
             # 컬렉션 메타데이터 정보 수집
             self._collect_collection_info()
             
-            logger.info(f"벡터 검색 클라이언트 초기화 완료: {collection_name} ({collection_count:,}개 문서)")
+            logger.info(f"벡터 검색 클라이언트 초기화 완료: {self.collection_name} ({collection_count:,}개 문서)")
             
         except Exception as e:
             self.connection_status = "CONNECTION_FAILED"
@@ -177,11 +170,11 @@ class VectorSearchClient:
         return status_info
 
     def search_relevant_documents(
-        self, 
-        query: str, 
-        n_results: int = 5,
-        department: Optional[str] = None,
-        source_type: Optional[str] = None
+            self, 
+            query: str, 
+            n_results: int = 5,
+            department: Optional[str] = None,
+            source_type: Optional[str] = None
         ) -> List[Dict[str, Any]]:
         """
         질의와 관련된 문서들을 검색
@@ -276,10 +269,10 @@ class VectorSearchClient:
             return []
     
     def get_context_for_llm(
-        self, 
-        query: str, 
-        max_context_length: int = 2000,
-        department: Optional[str] = None
+            self, 
+            query: str, 
+            max_context_length: int = 2000,
+            department: Optional[str] = None
         ) -> str:
         """
         LLM에게 제공할 컨텍스트 문자열 생성

@@ -131,7 +131,7 @@ if "%REBUILD_LIBS%"=="true" (
 
 REM 9. 애플리케이션 서비스 빌드 (병렬)
 echo [INFO] 애플리케이션 서비스 빌드...
-docker-compose build chromadb fastapi --parallel
+docker-compose build chromadb mongodb fastapi --parallel
 if errorlevel 1 (
     echo [ERROR] 애플리케이션 서비스 빌드 실패. 종료합니다.
     exit /b 1
@@ -140,7 +140,7 @@ echo.
 
 REM 10. 서비스 실행
 echo [INFO] 애플리케이션 서비스 실행...
-docker-compose up -d chromadb fastapi 
+docker-compose up -d chromadb mongodb fastapi 
 if errorlevel 1 (
     echo [ERROR] 서비스 실행 실패. 종료합니다.
     exit /b 1

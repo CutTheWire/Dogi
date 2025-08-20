@@ -1,5 +1,5 @@
 '''
-파일은 LlamaOfficeModel, BaseConfig.OfficePrompt 클래스를 정의하고 llama_cpp_cuda를 사용하여,
+파일은 LlamaModel, BaseConfig.OfficePrompt 클래스를 정의하고 llama_cpp_cuda를 사용하여,
 Meta-Llama-3.1-8B-Claude.Q4_0.gguf 모델을 사용하여 대화를 생성하는 데 필요한 모든 기능을 제공합니다.
 RAG(Retrieval-Augmented Generation) 기능이 추가되었습니다.
 '''
@@ -16,7 +16,7 @@ from threading import Thread
 from contextlib import contextmanager
 from datetime import datetime
 
-from domain import BaseConfig, VectorClient
+from domain import BaseConfig
 
 GREEN = "\033[32m"
 RED = "\033[31m"
@@ -63,8 +63,8 @@ def build_llama3_prompt(
     # 대화 기록 추가
     if character_info.chat_list:
         for chat in character_info.chat_list:
-            user_input = chat.get("input_data", "")
-            assistant_output = chat.get("output_data", "")
+            user_input = chat.get("content", chat.get("input_data", ""))
+            assistant_output = chat.get("answer", chat.get("output_data", ""))
 
             if user_input:
                 prompt += (
@@ -86,25 +86,24 @@ def build_llama3_prompt(
 
     return prompt
 
-class LlamaOfficeModel:
+class LlamaModel:
     """
-    RAG 기능을 갖춘 GGUF 포맷 llama-3-Korean-Bllossom-8B 모델 클래스
-    벡터 검색을 통해 관련 의료 문서를 검색하고 이를 바탕으로 응답을 생성합니다.
+    GGUF 포맷 llama-3-Korean-Bllossom-8B 모델 클래스
+    외부에서 제공받은 검색 컨텍스트를 바탕으로 응답을 생성합니다.
     """
     def __init__(self, enable_rag: bool = True) -> None:
         """
-        LlamaOfficeModel 클래스 초기화 메소드
+        LlamaModel 클래스 초기화 메소드
         
         Args:
-            enable_rag: RAG 기능 활성화 여부
+            enable_rag: RAG 기능 활성화 여부 (호환성을 위해 유지하지만 내부적으로 사용하지 않음)
         """
         self.model_id = 'llama-3-Korean-Bllossom-8B'
-        self.model_path = ".app/fastapi/models/llama-3-Korean-Bllossom-8B.gguf"
-        self.file_path = '.app/fastapi/prompt/config-Llama.json'
+        self.model_path = "/app/fastapi/models/llama-3-Korean-Bllossom-8B.gguf"
+        self.file_path = "/app/prompt/config-Llama.json"
         self.loading_text = f"{BLUE}LOADING{RESET}:    {self.model_id} 로드 중..."
         self.character_info: Optional[BaseConfig.OfficePrompt] = None
         self.config: Optional[BaseConfig.LlamaGenerationConfig] = None
-        self.enable_rag = enable_rag
         
         print("\n"+ f"{BLUE}LOADING{RESET}:  " + "="*len(self.loading_text))
         print(f"{BLUE}LOADING{RESET}:    {__class__.__name__} 모델 초기화 시작...")
@@ -112,24 +111,6 @@ class LlamaOfficeModel:
         # JSON 파일 읽기
         with open(self.file_path, 'r', encoding = 'utf-8') as file:
             self.data: BaseConfig.BaseConfig = json.load(file)
-
-        # RAG 시스템 초기화
-        if self.enable_rag:
-            print(f"{BLUE}LOADING{RESET}:    RAG 시스템 초기화 중...")
-            try:
-                self.vector_search = VectorClient.VectorSearchClient()
-                if self.vector_search.health_check():
-                    print(f"{GREEN}SUCCESS{RESET}:   RAG 시스템 초기화 완료!")
-                else:
-                    print(f"{YELLOW}WARNING{RESET}:  RAG 시스템 초기화 실패, RAG 비활성화")
-                    self.enable_rag = False
-                    self.vector_search = None
-            except Exception as e:
-                print(f"{YELLOW}WARNING{RESET}:  RAG 시스템 오류: {e}, RAG 비활성화")
-                self.enable_rag = False
-                self.vector_search = None
-        else:
-            self.vector_search = None
 
         # 진행 상태 표시
         print(f"{BLUE}LOADING{RESET}:    {__class__.__name__} 모델 초기화 중...")
@@ -284,11 +265,11 @@ class LlamaOfficeModel:
 
     def generate_response(self, input_text: str, search_text: str, chat_list: List[Dict]) -> str:
         """
-        RAG 기능을 활용한 최적화된 응답 생성 메서드
+        외부에서 제공받은 검색 컨텍스트를 활용한 응답 생성 메서드
 
         Args:
             input_text (str): 사용자 입력 텍스트
-            search_text (str): 기존 검색 텍스트 (RAG 활성화 시 무시됨)
+            search_text (str): 외부에서 제공받은 검색 컨텍스트
             chat_list (List[Dict]): 대화 기록
 
         Returns:
@@ -296,33 +277,31 @@ class LlamaOfficeModel:
         """
         start_time = time.time()
         try:
-            # RAG를 사용한 컨텍스트 생성
-            if self.enable_rag and self.vector_search:
-                print(f"    🔍 벡터 검색 시작...")
-                vector_context = self.vector_search.get_context_for_llm(
-                    query=input_text,
-                    max_context_length=2000
-                )
-                print(f"    ✅ 벡터 검색 완료: {len(vector_context)} 문자")
-                reference_text = vector_context
+            # 외부에서 제공받은 검색 컨텍스트 사용
+            if search_text:
+                print(f"    ✅ 외부 검색 컨텍스트 활용: {len(search_text)} 문자")
+                reference_text = search_text
             else:
-                # 기존 방식 사용
+                # 검색 컨텍스트가 없는 경우 기본 정보 사용
                 current_time = datetime.now().strftime("%Y년 %m월 %d일 %H시 %M분")
-                time_info = f"현재 시간은 {current_time}입니다.\n\n"
-                reference_text = time_info + (search_text if search_text else "")
+                reference_text = f"현재 시간은 {current_time}입니다.\n\n"
+                print(f"    ⚠️ 검색 컨텍스트 없음, 기본 정보 사용")
 
-            # 대화 기록 정규화
+            # 대화 기록 정규화 - MongoDB 구조에 맞게 수정
             normalized_chat_list = []
             if chat_list and len(chat_list) > 0:
                 for chat in chat_list:
+                    # MongoDB에서 가져온 메시지 구조에 맞게 수정
                     normalized_chat = {
-                        "index": chat.get("index"),
-                        "input_data": chat.get("input_data"),
-                        "output_data": self._normalize_escape_chars(chat.get("output_data", ""))
+                        "index": chat.get("message_idx", chat.get("index")),
+                        "input_data": chat.get("content", chat.get("input_data", "")),
+                        "output_data": self._normalize_escape_chars(
+                            chat.get("answer", chat.get("output_data", ""))
+                        )
                     }
                     normalized_chat_list.append(normalized_chat)
             else:
-                normalized_chat_list = chat_list
+                normalized_chat_list = []
 
             # 캐릭터 정보 설정
             self.character_info = BaseConfig.OfficePrompt(
@@ -353,12 +332,15 @@ class LlamaOfficeModel:
                 presence_penalty = 0.1,             # presence_penalty 복원
                 seed = None,                        # 시드 없음 (다양성 확보)
             )
+            
+            print(f"    🚀 응답 생성 시작...")
             chunks = []
             for text_chunk in self.create_streaming_completion(config = self.config):
                 chunks.append(text_chunk)
             
             result = "".join(chunks)
             generation_time = time.time() - start_time
+            print(f"    ✅ 응답 생성 완료 (소요 시간: {generation_time:.2f}초)")
             return result
 
         except Exception as e:

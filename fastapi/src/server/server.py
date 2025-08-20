@@ -1,16 +1,25 @@
 import uvicorn
+from fastapi import FastAPI
 from fastapi.openapi.utils import get_openapi
 from fastapi.middleware.cors import CORSMiddleware
-from fastapi import FastAPI
-
-# # 프로젝트 루트를 PYTHONPATH에 추가
-# project_root = Path(__file__).parent.parent  # /app/src
-# sys.path.insert(0, str(project_root))
+from contextlib import asynccontextmanager
 
 from api import v1
+from core import app_state
 from domain import ErrorTools
 
-app = FastAPI()
+@asynccontextmanager
+async def lifespan(app: FastAPI):
+    '''
+    FastAPI 애플리케이션의 수명 주기를 관리하는 함수.
+    '''
+    await app_state.initialize_handlers()
+    try:
+        yield
+    finally:
+        await app_state.cleanup_handlers()
+
+app = FastAPI(lifespan=lifespan)
 ErrorTools.ExceptionManager.register(app)
 
 def custom_openapi():
