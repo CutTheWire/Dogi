@@ -1,9 +1,10 @@
 from typing import Optional
+from llm import Llama
 from service import (
     MySQLClient,
     MongoClient,
-    VectorClient,
     JWTService,
+    VectorClient,  # 추가
 )
 
 GREEN = "\033[32m"
@@ -11,27 +12,30 @@ RED = "\033[31m"
 RESET = "\033[0m"
 
 # 핸들러 인스턴스는 초기에 None으로 설정하고 지연 초기화
-vector_handler: Optional[VectorClient.VectorSearchHandler] = None
 mongo_handler: Optional[MongoClient.MongoDBHandler] = None
 mysql_handler: Optional[MySQLClient.MongoDBHandler] = None
 jwt_service: Optional[JWTService.JWTHandler] = None
-llama_model: Optional[object] = None
+llama_model: Optional[Llama.LlamaModel] = None
+vector_handler: Optional[VectorClient.VectorSearchHandler] = None  # 추가
 
 async def initialize_handlers():
     """
     애플리케이션 시작 시 모든 DB 핸들러 및 LLM 모델 초기화
     """
-    global vector_handler, mongo_handler, mysql_handler, jwt_service, llama_model
-    
-    # Vector DB 핸들러 초기화
+    global mongo_handler, mysql_handler, jwt_service, llama_model, vector_handler
+
+    # Vector DB 핸들러 초기화 (가장 먼저)
     if vector_handler is None:
         try:
             vector_handler = VectorClient.VectorSearchHandler()
-            print(f"{GREEN}INFO{RESET}:     Vector DB 핸들러가 성공적으로 초기화되었습니다.")
+            if vector_handler.health_check():
+                print(f"{GREEN}INFO{RESET}:     Vector DB 핸들러가 성공적으로 초기화되었습니다.")
+            else:
+                print(f"{RED}WARNING{RESET}:  Vector DB 연결 실패, RAG 기능이 제한됩니다.")
         except Exception as e:
             print(f"{RED}ERROR{RESET}:     Vector DB 초기화 오류 발생: {str(e)}")
             vector_handler = None
-    
+
     # MongoDB 핸들러 초기화
     if mongo_handler is None:
         try:
@@ -62,29 +66,64 @@ async def initialize_handlers():
     # Llama 모델 초기화
     if llama_model is None:
         try:
-            from llm import Llama
             llama_model = Llama.LlamaModel()
             print(f"{GREEN}INFO{RESET}:     Llama 모델이 성공적으로 초기화되었습니다.")
         except Exception as e:
             print(f"{RED}ERROR{RESET}:     Llama 모델 초기화 오류 발생: {str(e)}")
             llama_model = None
 
+def get_mongo_handler() -> Optional[MongoClient.MongoDBHandler]:
+    """
+    MongoDB 핸들러 인스턴스를 반환하는 함수
+    
+    Returns:
+        Optional[MongoClient.MongoDBHandler]: MongoDB 핸들러 인스턴스
+    """
+    return mongo_handler
+
+def get_mysql_handler() -> Optional[MySQLClient.MongoDBHandler]:
+    """
+    MySQL 핸들러 인스턴스를 반환하는 함수
+    
+    Returns:
+        Optional[MySQLClient.MySQLClient]: MySQL 핸들러 인스턴스
+    """
+    return mysql_handler
+
+def get_jwt_service() -> Optional[JWTService.JWTHandler]:
+    """
+    JWT 서비스 인스턴스를 반환하는 함수
+    
+    Returns:
+        Optional[JWTService.JWTHandler]: JWT 서비스 인스턴스
+    """
+    return jwt_service
+
+def get_llama_model():
+    """
+    Llama 모델 인스턴스를 반환하는 함수
+    
+    Returns:
+        Optional[LlamaModel]: Llama 모델 인스턴스
+    """
+    return llama_model
+
+def get_vector_handler() -> Optional[VectorClient.VectorSearchHandler]:
+    """
+    Vector DB 핸들러 인스턴스를 반환하는 함수
+    
+    Returns:
+        Optional[VectorClient.VectorSearchHandler]: Vector DB 핸들러 인스턴스
+    """
+    return vector_handler
+
+
+
 async def cleanup_handlers():
     """
     애플리케이션 종료 시 모든 DB 핸들러 및 LLM 모델 정리
     """
-    global vector_handler, mongo_handler, mysql_handler, jwt_service, llama_model
-    
-    # Vector DB 핸들러 정리
-    if vector_handler is not None:
-        try:
-            # VectorClient에 cleanup 메서드가 있다면 호출
-            if hasattr(vector_handler, 'cleanup'):
-                vector_handler.cleanup()
-            vector_handler = None
-            print(f"{GREEN}INFO{RESET}:     Vector DB 핸들러가 정리되었습니다.")
-        except Exception as e:
-            print(f"{RED}ERROR{RESET}:     Vector DB 정리 중 오류: {str(e)}")
+    global mongo_handler, mysql_handler, jwt_service, llama_model
     
     # MongoDB 핸들러 정리
     if mongo_handler is not None:
@@ -124,48 +163,3 @@ async def cleanup_handlers():
             print(f"{GREEN}INFO{RESET}:     Llama 모델이 정리되었습니다.")
         except Exception as e:
             print(f"{RED}ERROR{RESET}:     Llama 모델 정리 중 오류: {str(e)}")
-
-def get_vector_handler() -> Optional[VectorClient.VectorSearchHandler]:
-    """
-    Vector DB 핸들러 인스턴스를 반환하는 함수
-    
-    Returns:
-        Optional[VectorClient.VectorSearchHandler]: 벡터 검색 클라이언트 인스턴스
-    """
-    return vector_handler
-
-def get_mongo_handler() -> Optional[MongoClient.MongoDBHandler]:
-    """
-    MongoDB 핸들러 인스턴스를 반환하는 함수
-    
-    Returns:
-        Optional[MongoClient.MongoDBHandler]: MongoDB 핸들러 인스턴스
-    """
-    return mongo_handler
-
-def get_mysql_handler() -> Optional[MySQLClient.MongoDBHandler]:
-    """
-    MySQL 핸들러 인스턴스를 반환하는 함수
-    
-    Returns:
-        Optional[MySQLClient.MySQLClient]: MySQL 핸들러 인스턴스
-    """
-    return mysql_handler
-
-def get_jwt_service() -> Optional[JWTService.JWTHandler]:
-    """
-    JWT 서비스 인스턴스를 반환하는 함수
-    
-    Returns:
-        Optional[JWTService.JWTHandler]: JWT 서비스 인스턴스
-    """
-    return jwt_service
-
-def get_llama_model():
-    """
-    Llama 모델 인스턴스를 반환하는 함수
-    
-    Returns:
-        Optional[LlamaModel]: Llama 모델 인스턴스
-    """
-    return llama_model

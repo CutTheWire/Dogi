@@ -6,8 +6,8 @@ from llm import Llama
 from service import (
     MySQLClient,
     MongoClient,
-    VectorClient,
-    JWTService
+    JWTService,
+    VectorClient
 )
 
 async def get_mongo_client() -> MongoClient.MongoDBHandler:
@@ -22,21 +22,6 @@ async def get_mongo_client() -> MongoClient.MongoDBHandler:
         raise HTTPException(
             status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
             detail="MongoDB 서비스를 사용할 수 없습니다."
-        )
-    return handler
-
-async def get_vector_client() -> VectorClient.VectorSearchHandler:
-    """
-    FastAPI 의존성 주입을 통해 벡터 검색 클라이언트를 가져옵니다.
-    
-    Returns:
-        VectorClient.VectorSearchHandler: 벡터 검색 클라이언트 인스턴스.
-    """
-    handler = app_state.get_vector_handler()
-    if handler is None:
-        raise HTTPException(
-            status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
-            detail="벡터 검색 서비스를 사용할 수 없습니다."
         )
     return handler
 
@@ -124,3 +109,15 @@ async def get_current_user_id(authorization: Optional[str] = None) -> str:
             status_code=status.HTTP_401_UNAUTHORIZED,
             detail="유효하지 않은 토큰입니다."
         )
+
+def get_vector_client() -> VectorClient.VectorSearchHandler:
+    """
+    VectorSearchHandler 의존성 주입
+    """
+    handler = app_state.get_vector_handler()
+    if handler is None:
+        raise HTTPException(
+            status_code=503,
+            detail="Vector DB 서비스를 사용할 수 없습니다."
+        )
+    return handler

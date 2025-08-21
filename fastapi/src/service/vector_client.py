@@ -61,84 +61,108 @@ class VectorSearchHandler:
         env_file_path = Path(__file__).resolve().parents[1] / ".env"
         load_dotenv(env_file_path)
         
-        self.chroma_host = os.getenv('CHROMA_HOST')
-        self.chroma_port = os.getenv('CHROMA_PORT')
-        self.collection_name = os.getenv('CHROMA_COLLECTION_NAME')
-        self.connection_status = "NOT_CONNECTED"
+        self.chroma_host = os.getenv('CHROMA_HOST', 'localhost')
+        self.chroma_port = os.getenv('CHROMA_PORT', '8000')
+        self.collection_name = os.getenv('CHROMA_COLLECTION_NAME', 'vet_medical_data')
+        
+        self.client = None
+        self.collection = None
+        self.connection_status = "DISCONNECTED"
+        self.available_departments = []
+        self.available_source_types = []
         self.last_search_info = {}
         
-        # HTTP 로그 숨기기
-        logging.getLogger("httpx").setLevel(logging.ERROR)
-        logging.getLogger("chromadb").setLevel(logging.ERROR)
-        
         try:
-            print(f"ChromaDB 연결 시도: {self.chroma_host}:{self.chroma_port}")
+            self._connect_to_chroma()
+            self._ensure_collection_exists()
+            logger.info(f"VectorSearchHandler 초기화 완료")
+        except Exception as e:
+            logger.error(f"VectorSearchHandler 초기화 실패: {e}")
+            self.client = None
+            self.collection = None
+            self.connection_status = "FAILED"
+
+    def _connect_to_chroma(self):
+        """ChromaDB에 연결"""
+        try:
+            import chromadb
+            from chromadb.config import Settings
+            
+            chroma_url = f"http://{self.chroma_host}:{self.chroma_port}"
+            logger.info(f"ChromaDB 연결 시도: {chroma_url}")
             
             self.client = chromadb.HttpClient(
                 host=self.chroma_host,
-                port=self.chroma_port,
-                settings=Settings(
-                    allow_reset=True,
-                    anonymized_telemetry=False
-                )
+                port=int(self.chroma_port),
+                settings=Settings(anonymized_telemetry=False)
             )
             
-            # 컬렉션 가져오기
-            self.collection = self.client.get_collection(name=self.collection_name)
-            
-            # 연결 성공 시 정보 수집
-            collection_count = self.collection.count()
+            # 연결 테스트
+            self.client.heartbeat()
             self.connection_status = "CONNECTED"
-            
-            print(f"ChromaDB 연결 성공!")
-            print(f"컬렉션: {self.collection_name}")
-            print(f"문서 수: {collection_count:,}개")
-            
-            # 컬렉션 메타데이터 정보 수집
-            self._collect_collection_info()
-            
-            logger.info(f"벡터 검색 클라이언트 초기화 완료: {self.collection_name} ({collection_count:,}개 문서)")
+            logger.info(f"ChromaDB 연결 성공: {chroma_url}")
             
         except Exception as e:
-            self.connection_status = "CONNECTION_FAILED"
-            self.collection = None
-            print(f"ChromaDB 연결 실패: {e}")
+            self.connection_status = "DISCONNECTED"
             logger.error(f"ChromaDB 연결 실패: {e}")
+            raise
+
+    def _ensure_collection_exists(self):
+        """컬렉션이 존재하지 않으면 생성"""
+        try:
+            # 기존 컬렉션 목록 확인
+            collections = self.client.list_collections()
+            collection_names = [col.name for col in collections]
+            
+            if self.collection_name in collection_names:
+                # 기존 컬렉션 사용
+                self.collection = self.client.get_collection(name=self.collection_name)
+                logger.info(f"기존 컬렉션 사용: {self.collection_name}")
+            else:
+                # 새 컬렉션 생성
+                self.collection = self.client.create_collection(
+                    name=self.collection_name,
+                    metadata={"description": "반려동물 의료 데이터 벡터 검색용 컬렉션"}
+                )
+                logger.info(f"새 컬렉션 생성: {self.collection_name}")
+                
+                # 샘플 데이터 추가 (빈 컬렉션 방지)
+                self._add_sample_data()
+            
+            # 컬렉션 정보 수집
+            self._collect_collection_info()
+                
+        except Exception as e:
+            logger.error(f"컬렉션 설정 실패: {e}")
+            raise
 
     def _collect_collection_info(self):
-        """
-        컬렉션 정보 수집
-        """
+        """컬렉션 정보 수집"""
         try:
-            # 샘플 데이터 조회하여 스키마 파악
-            sample_results = self.collection.peek(limit=5)
-            
-            departments = set()
-            source_types = set()
-
-            metadatas = sample_results.get('metadatas')
-            if not metadatas:
-                metadatas = []
-
-            for metadata in metadatas:
-                if not metadata:
-                    continue
+            if self.collection:
+                # 샘플 데이터로부터 사용 가능한 옵션 수집
+                sample_results = self.collection.get(limit=100)
                 
-                dept = metadata.get('department')
-                if dept:
-                    departments.add(dept)
-                src_type = metadata.get('source_type')
-                if src_type:
-                    source_types.add(src_type)
-            
-            self.available_departments = list(departments)
-            self.available_source_types = list(source_types)
-            
-            print(f"사용 가능한 진료과: {', '.join(self.available_departments)}")
-            print(f"사용 가능한 데이터 타입: {', '.join(self.available_source_types)}")
-            
+                self.available_departments = []
+                self.available_source_types = []
+                
+                if sample_results['metadatas']:
+                    for metadata in sample_results['metadatas']:
+                        if metadata.get('department'):
+                            dept = metadata['department']
+                            if dept not in self.available_departments:
+                                self.available_departments.append(dept)
+                        
+                        if metadata.get('source_type'):
+                            source = metadata['source_type']
+                            if source not in self.available_source_types:
+                                self.available_source_types.append(source)
+                
+                logger.info(f"사용 가능한 진료과: {self.available_departments}")
+                logger.info(f"사용 가능한 데이터 타입: {self.available_source_types}")
+                
         except Exception as e:
-            print(f"컬렉션 정보 수집 실패: {e}")
+            logger.warning(f"컬렉션 정보 수집 실패: {e}")
             self.available_departments = []
             self.available_source_types = []
 

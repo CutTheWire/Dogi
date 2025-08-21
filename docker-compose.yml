@@ -39,7 +39,12 @@ services:
       - mysql-data:/var/lib/mysql
       - ./mysql/init.sql:/docker-entrypoint-initdb.d/init.sql
       - ./mysql/log.cnf:/etc/mysql/conf.d/log.cnf
-    restart: unless-stopped
+    command: [
+      "--character-set-server=utf8mb4", 
+      "--collation-server=utf8mb4_unicode_ci",
+      "--skip-host-cache",
+      "--skip-name-resolve"
+      ]
 
   chromadb:
     image: chromadb/chroma:latest
@@ -84,6 +89,7 @@ services:
       - ./fastapi/src/.env:/app/.env:ro
     depends_on:
       - python-libs-init
+      - chromadb
       - mongodb
       - mysql
     deploy:
@@ -121,6 +127,7 @@ services:
       - JWT_SECRET_KEY=${JWT_SECRET_KEY}
       - JWT_ALGORITHM=${JWT_ALGORITHM}
       - ACCESS_TOKEN_EXPIRE_MINUTES=${ACCESS_TOKEN_EXPIRE_MINUTES}
+      - REFRESH_TOKEN_EXPIRE_DAYS=${REFRESH_TOKEN_EXPIRE_DAYS}
 
 volumes:
   python-libs:

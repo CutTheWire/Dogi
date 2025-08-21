@@ -14,14 +14,50 @@ class JWTHandler:
     """
     
     def __init__(self):
-        env_file_path = Path(__file__).resolve().parents[1] / ".env"
-        load_dotenv(env_file_path)
-        
-        self.secret_key = os.getenv('JWT_SECRET_KEY')
-        self.algorithm = os.getenv('JWT_ALGORITHM')
-        self.access_token_expire_minutes = int(os.getenv('ACCESS_TOKEN_EXPIRE_MINUTES'))
-        self.refresh_token_expire_days = int(os.getenv('REFRESH_TOKEN_EXPIRE_DAYS'))
-        self.pwd_context = CryptContext(schemes=["bcrypt"], deprecated="auto")
+        try:
+            # .env 파일 로드
+            env_file_path = Path(__file__).resolve().parents[1] / ".env"
+            load_dotenv(env_file_path)
+            
+            # 환경 변수에서 JWT 설정 가져오기
+            self.secret_key = os.getenv("JWT_SECRET_KEY")
+            self.algorithm = os.getenv("JWT_ALGORITHM", "HS256")
+            
+            # ACCESS_TOKEN_EXPIRE_MINUTES 기본값 설정
+            expire_minutes_str = os.getenv("ACCESS_TOKEN_EXPIRE_MINUTES")
+            if expire_minutes_str is None or expire_minutes_str == "":
+                self.access_token_expire_minutes = 30  # 기본값
+                print("WARNING: ACCESS_TOKEN_EXPIRE_MINUTES가 설정되지 않음. 기본값 30분 사용")
+            else:
+                try:
+                    self.access_token_expire_minutes = int(expire_minutes_str)
+                except ValueError:
+                    self.access_token_expire_minutes = 30  # 기본값
+                    print(f"WARNING: ACCESS_TOKEN_EXPIRE_MINUTES 값이 잘못됨 ({expire_minutes_str}). 기본값 30분 사용")
+            
+            # REFRESH_TOKEN_EXPIRE_DAYS 기본값 설정
+            expire_days_str = os.getenv("REFRESH_TOKEN_EXPIRE_DAYS")
+            if expire_days_str is None or expire_days_str == "":
+                self.refresh_token_expire_days = 7  # 기본값
+                print("WARNING: REFRESH_TOKEN_EXPIRE_DAYS가 설정되지 않음. 기본값 7일 사용")
+            else:
+                try:
+                    self.refresh_token_expire_days = int(expire_days_str)
+                except ValueError:
+                    self.refresh_token_expire_days = 7  # 기본값
+                    print(f"WARNING: REFRESH_TOKEN_EXPIRE_DAYS 값이 잘못됨 ({expire_days_str}). 기본값 7일 사용")
+            
+            if not self.secret_key:
+                raise ValueError("JWT_SECRET_KEY가 설정되지 않았습니다.")
+            
+            # bcrypt 비밀번호 암호화 컨텍스트 초기화
+            self.pwd_context = CryptContext(schemes=["bcrypt"], deprecated="auto")
+            
+            print(f"JWT 서비스 초기화 완료 - 만료시간: Access({self.access_token_expire_minutes}분), Refresh({self.refresh_token_expire_days}일)")
+            
+        except Exception as e:
+            print(f"JWT 서비스 초기화 실패: {e}")
+            raise e
     
     def hash_password(self, password: str) -> str:
         """

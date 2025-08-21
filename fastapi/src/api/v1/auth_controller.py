@@ -2,7 +2,7 @@ from fastapi import APIRouter, Depends, HTTPException, status
 from fastapi.responses import JSONResponse
 from typing import Optional
 
-from core import dependencies
+from core import Dependencies
 from domain import Schema, ErrorTools
 from service import (
     MySQLClient,
@@ -14,8 +14,8 @@ auth_router = APIRouter()
 @auth_router.post("/register", summary="회원가입", status_code=201)
 async def register(
     request: Schema.UserRegisterRequest,
-    mysql_handler: MySQLClient.MongoDBHandler = Depends(dependencies.get_mysql_client),
-    jwt_service: JWTService.JWTHandler = Depends(dependencies.get_jwt_service)
+    mysql_handler: MySQLClient.MongoDBHandler = Depends(Dependencies.get_mysql_client),
+    jwt_service: JWTService.JWTHandler = Depends(Dependencies.get_jwt_service)
 ):
     """
     새로운 사용자를 등록합니다.
@@ -91,8 +91,8 @@ async def register(
 @auth_router.post("/login", summary="로그인")
 async def login(
     request: Schema.UserLoginRequest,
-    mysql_handler: MySQLClient.MongoDBHandler = Depends(dependencies.get_mysql_client),
-    jwt_service: JWTService.JWTHandler = Depends(dependencies.get_jwt_service)
+    mysql_handler: MySQLClient.MongoDBHandler = Depends(Dependencies.get_mysql_client),
+    jwt_service: JWTService.JWTHandler = Depends(Dependencies.get_jwt_service)
 ):
     """
     사용자 로그인을 처리합니다.
@@ -163,8 +163,8 @@ async def login(
 @auth_router.post("/refresh", summary="토큰 갱신")
 async def refresh_token(
     request: Schema.RefreshTokenRequest,
-    mysql_handler: MySQLClient.MongoDBHandler = Depends(dependencies.get_mysql_client),
-    jwt_service: JWTService.JWTHandler = Depends(dependencies.get_jwt_service)
+    mysql_handler: MySQLClient.MongoDBHandler = Depends(Dependencies.get_mysql_client),
+    jwt_service: JWTService.JWTHandler = Depends(Dependencies.get_jwt_service)
 ):
     """
     리프레시 토큰으로 새로운 액세스 토큰을 발급합니다.
@@ -210,8 +210,8 @@ async def refresh_token(
 @auth_router.post("/logout", summary="로그아웃")
 async def logout(
     request: Schema.RefreshTokenRequest,
-    mysql_handler: MySQLClient.MongoDBHandler = Depends(dependencies.get_mysql_client),
-    jwt_service: JWTService.JWTHandler = Depends(dependencies.get_jwt_service)
+    mysql_handler: MySQLClient.MongoDBHandler = Depends(Dependencies.get_mysql_client),
+    jwt_service: JWTService.JWTHandler = Depends(Dependencies.get_jwt_service)
 ):
     """
     사용자 로그아웃을 처리합니다.
@@ -238,8 +238,8 @@ async def logout(
 
 @auth_router.get("/profile", summary="프로필 조회")
 async def get_profile(
-    user_id: str = Depends(dependencies.get_current_user_id),
-    mysql_handler: MySQLClient.MongoDBHandler = Depends(dependencies.get_mysql_client)
+    user_id: str = Depends(Dependencies.get_current_user_id),
+    mysql_handler: MySQLClient.MongoDBHandler = Depends(Dependencies.get_mysql_client)
 ):
     """
     현재 사용자의 프로필을 조회합니다.
@@ -280,8 +280,8 @@ async def get_profile(
 @auth_router.patch("/profile", summary="프로필 수정")
 async def update_profile(
     request: Schema.UserProfileUpdateRequest,
-    user_id: str = Depends(dependencies.get_current_user_id),
-    mysql_handler: MySQLClient.MongoDBHandler = Depends(dependencies.get_mysql_client)
+    user_id: str = Depends(Dependencies.get_current_user_id),
+    mysql_handler: MySQLClient.MongoDBHandler = Depends(Dependencies.get_mysql_client)
 ):
     """
     현재 사용자의 프로필을 수정합니다.

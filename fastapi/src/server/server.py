@@ -5,7 +5,7 @@ from fastapi.middleware.cors import CORSMiddleware
 from contextlib import asynccontextmanager
 
 from api import v1
-from core import app_state
+from core import AppState
 from domain import ErrorTools
 
 @asynccontextmanager
@@ -13,11 +13,11 @@ async def lifespan(app: FastAPI):
     '''
     FastAPI 애플리케이션의 수명 주기를 관리하는 함수.
     '''
-    await app_state.initialize_handlers()
+    await AppState.initialize_handlers()
     try:
         yield
     finally:
-        await app_state.cleanup_handlers()
+        await AppState.cleanup_handlers()
 
 app = FastAPI(lifespan=lifespan)
 ErrorTools.ExceptionManager.register(app)
