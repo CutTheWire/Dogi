@@ -95,8 +95,18 @@ class JWTHandler:
             str: 생성된 JWT 액세스 토큰
         """
         to_encode = data.copy()
-        expire = datetime.utcnow() + timedelta(minutes=self.access_token_expire_minutes)
-        to_encode.update({"exp": expire, "type": "access"})
+        # 현재 시간과 만료 시간을 더 정확하게 설정
+        now = datetime.utcnow()
+        expire = now + timedelta(minutes=self.access_token_expire_minutes)
+        
+        # 토큰의 고유성을 위해 발급 시간(iat)과 JTI(JWT ID) 추가
+        to_encode.update({
+            "exp": expire,
+            "iat": now,  # 발급 시간 추가
+            "type": "access",
+            "jti": secrets.token_urlsafe(16)  # JWT ID 추가 (고유성 보장)
+        })
+        
         return jwt.encode(to_encode, self.secret_key, algorithm=self.algorithm)
     
     def create_refresh_token(self, user_id: str) -> tuple[str, str, datetime]:
@@ -150,15 +160,19 @@ class JWTHandler:
     
     def extract_user_id(self, token: str) -> Optional[str]:
         """
-        토큰에서 사용자 ID 추출
+        JWT 토큰에서 사용자 ID 추출
         
         Args:
-            token (str): JWT 토큰
-        
+            token: JWT 토큰
+            
         Returns:
-            Optional[str]: 사용자 ID, 토큰이 유효하지 않으면 None
+            Optional[str]: 사용자 ID
         """
-        payload = self.verify_token(token)
-        if payload and payload.get("type") == "access":
-            return payload.get("sub")
-        return None
+        try:
+            payload = self.verify_token(token)
+            if payload:
+                return payload.get("sub")
+            return None
+        except Exception as e:
+            print(f"토큰에서 사용자 ID 추출 실패: {e}")
+            return None

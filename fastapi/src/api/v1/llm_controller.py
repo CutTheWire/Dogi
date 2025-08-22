@@ -1,4 +1,4 @@
-from fastapi import APIRouter, Request, Depends, Path, Header
+from fastapi import APIRouter, Request, Depends, Path, Header, HTTPException
 from fastapi.responses import JSONResponse
 from pydantic import ValidationError
 from typing import Optional
@@ -7,6 +7,7 @@ from core import Dependencies
 from llm import Llama
 from service import (
     MongoClient,
+    JWTService
 )
 from domain import (
     ModelRegistry,
@@ -15,6 +16,51 @@ from domain import (
 )
 
 llm_router = APIRouter()
+
+def get_current_user_id(authorization: str = Header(..., description="Bearer JWT 토큰")) -> str:
+    """
+    Authorization 헤더에서 JWT 토큰을 추출하고 사용자 ID를 반환합니다.
+    
+    Args:
+        authorization: "Bearer {jwt_token}" 형식의 Authorization 헤더
+    
+    Returns:
+        str: JWT 토큰에서 추출한 user_id
+    
+    Raises:
+        HTTPException: 토큰이 유효하지 않거나 user_id를 추출할 수 없는 경우
+    """
+    try:
+        # "Bearer " 접두사 제거
+        if not authorization.startswith("Bearer "):
+            raise HTTPException(
+                status_code=401,
+                detail="Invalid authorization header format"
+            )
+        
+        token = authorization.replace("Bearer ", "")
+        
+        # JWT 서비스 직접 인스턴스 생성
+        jwt_service = JWTService.JWTHandler()
+        
+        # JWT 토큰에서 사용자 ID 추출
+        user_id = jwt_service.extract_user_id(token)
+        
+        if not user_id:
+            raise HTTPException(
+                status_code=401,
+                detail="User ID not found in token"
+            )
+        
+        return user_id
+        
+    except HTTPException:
+        raise
+    except Exception as e:
+        raise HTTPException(
+            status_code=401,
+            detail=f"Token validation failed: {str(e)}"
+        )
 
 @llm_router.get("/models", summary="사용 가능한 AI 모델 목록")
 async def get_models():
@@ -29,21 +75,21 @@ async def get_models():
 
 @llm_router.post("/sessions", summary="새로운 LLM 세션 생성", status_code=201)
 async def create_session(
-    user_id: str = Depends(Dependencies.get_current_user_id),
+    current_user_id: str = Depends(get_current_user_id),
     mongo_handler: MongoClient.MongoDBHandler = Depends(Dependencies.get_mongo_client)
 ):
     """
     새로운 LLM 세션을 생성합니다.
     
     Args:
-        user_id: 현재 사용자 ID
+        current_user_id: JWT 토큰에서 추출한 현재 사용자 ID
         mongo_handler: MongoDB 핸들러
     
     Returns:
         JSONResponse: 생성된 세션 ID
     """
     try:
-        session_id = await mongo_handler.create_llm_session(user_id)
+        session_id = await mongo_handler.create_llm_session(current_user_id)
         return JSONResponse(
             content={"session_id": session_id},
             status_code=201
@@ -57,21 +103,21 @@ async def create_session(
 
 @llm_router.get("/sessions", summary="LLM 세션 목록 조회")
 async def get_sessions(
-    user_id: str = Depends(Dependencies.get_current_user_id),
+    current_user_id: str = Depends(get_current_user_id),
     mongo_handler: MongoClient.MongoDBHandler = Depends(Dependencies.get_mongo_client)
 ):
     """
     사용자의 LLM 세션 목록을 조회합니다.
     
     Args:
-        user_id: 현재 사용자 ID
+        current_user_id: JWT 토큰에서 추출한 현재 사용자 ID
         mongo_handler: MongoDB 핸들러
     
     Returns:
         JSONResponse: 세션 목록
     """
     try:
-        sessions = await mongo_handler.get_llm_sessions(user_id)
+        sessions = await mongo_handler.get_llm_sessions(current_user_id)
         return {"sessions": sessions}
     except Exception as e:
         raise ErrorTools.InternalServerErrorException(detail=f"세션 목록 조회 중 오류: {str(e)}")
@@ -79,7 +125,7 @@ async def get_sessions(
 @llm_router.get("/sessions/{session_id}", summary="LLM 세션 입장")
 async def get_session(
     session_id: str = Path(..., description="세션 ID"),
-    user_id: str = Depends(Dependencies.get_current_user_id),
+    current_user_id: str = Depends(get_current_user_id),
     mongo_handler: MongoClient.MongoDBHandler = Depends(Dependencies.get_mongo_client)
 ):
     """
@@ -87,14 +133,14 @@ async def get_session(
     
     Args:
         session_id: 세션 ID
-        user_id: 현재 사용자 ID
+        current_user_id: JWT 토큰에서 추출한 현재 사용자 ID
         mongo_handler: MongoDB 핸들러
     
     Returns:
         JSONResponse: 세션 정보
     """
     try:
-        session = await mongo_handler.get_llm_session(user_id, session_id)
+        session = await mongo_handler.get_llm_session(current_user_id, session_id)
         return session
     except Exception as e:
         raise ErrorTools.InternalServerErrorException(detail=f"세션 조회 중 오류: {str(e)}")
@@ -102,7 +148,7 @@ async def get_session(
 @llm_router.delete("/sessions/{session_id}", summary="LLM 세션 삭제", status_code=204)
 async def delete_session(
     session_id: str = Path(..., description="세션 ID"),
-    user_id: str = Depends(Dependencies.get_current_user_id),
+    current_user_id: str = Depends(get_current_user_id),
     mongo_handler: MongoClient.MongoDBHandler = Depends(Dependencies.get_mongo_client)
 ):
     """
@@ -110,14 +156,14 @@ async def delete_session(
     
     Args:
         session_id: 세션 ID
-        user_id: 현재 사용자 ID
+        current_user_id: JWT 토큰에서 추출한 현재 사용자 ID
         mongo_handler: MongoDB 핸들러
     
     Returns:
         JSONResponse: 삭제 완료 메시지
     """
     try:
-        message = await mongo_handler.delete_llm_session(user_id, session_id)
+        message = await mongo_handler.delete_llm_session(current_user_id, session_id)
         return JSONResponse(
             content={"message": "세션이 성공적으로 삭제되었습니다."},
             status_code=204
@@ -129,7 +175,7 @@ async def delete_session(
 async def add_message(
     request: Schema.MessageRequest,
     session_id: str = Path(..., description="세션 ID"),
-    user_id: str = Depends(Dependencies.get_current_user_id),
+    current_user_id: str = Depends(get_current_user_id),
     mongo_handler: MongoClient.MongoDBHandler = Depends(Dependencies.get_mongo_client),
     llama_model: Llama.LlamaModel = Depends(Dependencies.get_llama_model)
 ):
@@ -139,7 +185,7 @@ async def add_message(
     Args:
         request: 메시지 요청 데이터
         session_id: 세션 ID
-        user_id: 현재 사용자 ID
+        current_user_id: JWT 토큰에서 추출한 현재 사용자 ID
         mongo_handler: MongoDB 핸들러
         llama_model: Llama 모델
     
@@ -148,7 +194,7 @@ async def add_message(
     """
     try:
         # 기존 대화 목록 가져오기
-        chat_list = await mongo_handler.get_llm_messages(user_id, session_id)
+        chat_list = await mongo_handler.get_llm_messages(current_user_id, session_id)
         
         answer = llama_model.generate_response(
             input_text=request.content,
@@ -157,7 +203,7 @@ async def add_message(
         
         # MongoDB에 메시지 저장
         message = await mongo_handler.add_llm_message(
-            user_id=user_id,
+            user_id=current_user_id,
             session_id=session_id,
             content=request.content,
             model_id=request.model_id,
@@ -179,7 +225,7 @@ async def add_message(
 @llm_router.get("/sessions/{session_id}/messages", summary="LLM 세션 메시지 목록 조회")
 async def get_messages(
     session_id: str = Path(..., description="세션 ID"),
-    user_id: str = Depends(Dependencies.get_current_user_id),
+    current_user_id: str = Depends(get_current_user_id),
     mongo_handler: MongoClient.MongoDBHandler = Depends(Dependencies.get_mongo_client)
 ):
     """
@@ -187,14 +233,14 @@ async def get_messages(
     
     Args:
         session_id: 세션 ID
-        user_id: 현재 사용자 ID
+        current_user_id: JWT 토큰에서 추출한 현재 사용자 ID
         mongo_handler: MongoDB 핸들러
     
     Returns:
         JSONResponse: 메시지 목록
     """
     try:
-        messages = await mongo_handler.get_llm_messages(user_id, session_id)
+        messages = await mongo_handler.get_llm_messages(current_user_id, session_id)
         
         # 날짜 형식을 ISO 문자열로 변환
         formatted_messages = []
@@ -216,7 +262,7 @@ async def get_messages(
 async def update_last_message(
     request: Schema.MessageUpdateRequest,
     session_id: str = Path(..., description="세션 ID"),
-    user_id: str = Depends(Dependencies.get_current_user_id),
+    current_user_id: str = Depends(get_current_user_id),
     mongo_handler: MongoClient.MongoDBHandler = Depends(Dependencies.get_mongo_client),
     llama_model: Llama.LlamaModel = Depends(Dependencies.get_llama_model)
 ):
@@ -226,9 +272,8 @@ async def update_last_message(
     Args:
         request: 메시지 수정 요청 데이터
         session_id: 세션 ID
-        user_id: 현재 사용자 ID
+        current_user_id: JWT 토큰에서 추출한 현재 사용자 ID
         mongo_handler: MongoDB 핸들러
-        vector_handler: 벡터 검색 핸들러
         llama_model: Llama 모델
     
     Returns:
@@ -236,7 +281,7 @@ async def update_last_message(
     """
     try:
         # 기존 대화 목록 가져오기 (마지막 메시지 제외)
-        chat_list = await mongo_handler.get_llm_messages(user_id, session_id)
+        chat_list = await mongo_handler.get_llm_messages(current_user_id, session_id)
         if chat_list:
             chat_list = chat_list[:-1]  # 마지막 메시지 제외
         
@@ -248,7 +293,7 @@ async def update_last_message(
         
         # MongoDB에서 마지막 메시지 수정
         message = await mongo_handler.update_last_llm_message(
-            user_id=user_id,
+            user_id=current_user_id,
             session_id=session_id,
             content=request.content,
             model_id=request.model_id,
@@ -267,7 +312,7 @@ async def update_last_message(
 @llm_router.delete("/sessions/{session_id}/messages", summary="LLM 세션 마지막 대화 삭제", status_code=204)
 async def delete_last_message(
     session_id: str = Path(..., description="세션 ID"),
-    user_id: str = Depends(Dependencies.get_current_user_id),
+    current_user_id: str = Depends(get_current_user_id),
     mongo_handler: MongoClient.MongoDBHandler = Depends(Dependencies.get_mongo_client)
 ):
     """
@@ -275,14 +320,14 @@ async def delete_last_message(
     
     Args:
         session_id: 세션 ID
-        user_id: 현재 사용자 ID
+        current_user_id: JWT 토큰에서 추출한 현재 사용자 ID
         mongo_handler: MongoDB 핸들러
     
     Returns:
         JSONResponse: 삭제 완료 메시지
     """
     try:
-        message = await mongo_handler.delete_last_llm_message(user_id, session_id)
+        message = await mongo_handler.delete_last_llm_message(current_user_id, session_id)
         return JSONResponse(
             content={"message": "마지막 메시지가 성공적으로 삭제되었습니다."},
             status_code=204
@@ -294,7 +339,7 @@ async def delete_last_message(
 async def regenerate_last_message(
     request: Schema.RegenerateRequest,
     session_id: str = Path(..., description="세션 ID"),
-    user_id: str = Depends(Dependencies.get_current_user_id),
+    current_user_id: str = Depends(get_current_user_id),
     mongo_handler: MongoClient.MongoDBHandler = Depends(Dependencies.get_mongo_client),
     llama_model: Llama.LlamaModel = Depends(Dependencies.get_llama_model)
 ):
@@ -304,9 +349,8 @@ async def regenerate_last_message(
     Args:
         request: 재생성 요청 데이터
         session_id: 세션 ID
-        user_id: 현재 사용자 ID
+        current_user_id: JWT 토큰에서 추출한 현재 사용자 ID
         mongo_handler: MongoDB 핸들러
-        vector_handler: 벡터 검색 핸들러
         llama_model: Llama 모델
     
     Returns:
@@ -314,7 +358,7 @@ async def regenerate_last_message(
     """
     try:
         # 기존 대화 목록 가져오기
-        chat_list = await mongo_handler.get_llm_messages(user_id, session_id)
+        chat_list = await mongo_handler.get_llm_messages(current_user_id, session_id)
         if not chat_list:
             raise ErrorTools.NotFoundException("재생성할 메시지가 없습니다.")
         
@@ -333,7 +377,7 @@ async def regenerate_last_message(
         
         # MongoDB에서 마지막 메시지 재생성
         message = await mongo_handler.regenerate_last_llm_message(
-            user_id=user_id,
+            user_id=current_user_id,
             session_id=session_id,
             model_id=request.model_id,
             answer=answer

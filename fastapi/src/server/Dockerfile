@@ -1,13 +1,19 @@
 # 베이스 이미지 설정
 FROM dogi-base:latest
 
+# wait-for-it.sh 복사 및 실행 권한 부여
+COPY wait-for-it.sh /usr/local/bin/wait-for-it
+RUN sed -i 's/\r$//' /usr/local/bin/wait-for-it && chmod +x /usr/local/bin/wait-for-it
+
 WORKDIR /app
 
 ENV DEBIAN_FRONTEND=noninteractive
 RUN apt-get update && \
-    apt-get install -y tzdata && \
+    apt-get install -y tzdata netcat-openbsd && \
     ln -sf /usr/share/zoneinfo/Asia/Seoul /etc/localtime && \
-    echo "Asia/Seoul" > /etc/timezone
+    echo "Asia/Seoul" > /etc/timezone && \
+    apt-get clean && \
+    rm -rf /var/lib/apt/lists/*
 ENV TZ=Asia/Seoul
 
 # 애플리케이션 코드만 복사
@@ -30,4 +36,4 @@ ENV PYTHONDONTWRITEBYTECODE=1
 WORKDIR /app/src
 
 # 서버 실행
-CMD ["python", "server/server.py"]
+CMD ["/usr/local/bin/wait-for-it", "mysql:3306", "--", "python", "server/server.py"]

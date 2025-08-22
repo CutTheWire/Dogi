@@ -24,21 +24,20 @@ services:
       "
 
   mysql:
+    restart: unless-stopped
     build:
       context: ./mysql
-    container_name: mysql
     ports:
-      - "13306:3306"
+      - "3306:3306"
     environment:
-      MYSQL_ROOT_PASSWORD: ${MYSQL_ROOT_PASSWORD}
       MYSQL_DATABASE: ${MYSQL_DATABASE}
-      MYSQL_USER: ${MYSQL_USER}
-      MYSQL_PASSWORD: ${MYSQL_PASSWORD}
-      TZ: Asia/Seoul
+      MYSQL_ROOT_HOST: ${MYSQL_ROOT_HOST}
+      MYSQL_ROOT_PASSWORD: ${MYSQL_ROOT_PASSWORD}
+      TZ: Asia/Seoul  # 한국 시간대 설정
     volumes:
-      - mysql-data:/var/lib/mysql
-      - ./mysql/init.sql:/docker-entrypoint-initdb.d/init.sql
-      - ./mysql/log.cnf:/etc/mysql/conf.d/log.cnf
+      - ./mysql/data:/var/lib/mysql:rw
+      - ./mysql/log.cnf:/etc/mysql/conf.d/log.cnf:ro
+      - ./mysql/logs:/var/log/mysql:rw
     command: [
       "--character-set-server=utf8mb4", 
       "--collation-server=utf8mb4_unicode_ci",
@@ -71,11 +70,12 @@ services:
       MONGO_DATABASE: ${MONGO_DATABASE}
       TZ: Asia/Seoul  # 한국 시간대 설정
     volumes:
-      - ./mongo/data:/data/db
-      - ./logs:/var/logs/mongodb
-      - ./mongo/.env:/docker-entrypoint-initdb.d/.env
+      - ./mongo/data:/data/db:rw
+      - ./mongo/logs:/var/logs/mongodb:rw
+      - ./mongo/.env:/docker-entrypoint-initdb.d/.env:ro
 
   fastapi:
+    restart: always
     build:
       context: ./fastapi
       dockerfile: src/server/Dockerfile
@@ -86,7 +86,7 @@ services:
       - python-libs:/opt/python-libs:ro
       - ./fastapi/models/:/app/fastapi/models/:rw
       - ./fastapi/logs:/app/logs:rw
-      - ./fastapi/src/.env:/app/.env:ro
+      - ./fastapi/src/.env:/app/src/.env:ro
     depends_on:
       - python-libs-init
       - chromadb
@@ -103,31 +103,12 @@ services:
             - driver: nvidia
               capabilities: [gpu]
     environment:
-      - TZ=Asia/Seoul
-      - NVIDIA_VISIBLE_DEVICES=0
-      - CUDA_VISIBLE_DEVICES=0
-      - PYTHONPATH=/opt/python-libs/lib/python3.11/site-packages:/app:/app/src
-      - PYTHONUNBUFFERED=1
-      - PYTHONDONTWRITEBYTECODE=1
-      - OPENAI_API_KEY=${OPENAI_API_KEY}
-      - UVICORN_HTTP=h11
-      - CHROMA_HOST=chromadb
-      - CHROMA_PORT=8000
-      - CHROMA_COLLECTION_NAME=vet_medical_data
-      - MONGO_ADMIN_USER=${MONGO_ADMIN_USER}
-      - MONGO_ADMIN_PASSWORD=${MONGO_ADMIN_PASSWORD}
-      - MONGO_DATABASE=${MONGO_DATABASE}
-      - MONGO_HOST=mongodb
-      - MONGO_PORT=27017
-      - MYSQL_HOST=mysql
-      - MYSQL_PORT=3306
-      - MYSQL_DATABASE=${MYSQL_DATABASE}
-      - MYSQL_USER=${MYSQL_USER}
-      - MYSQL_PASSWORD=${MYSQL_PASSWORD}
-      - JWT_SECRET_KEY=${JWT_SECRET_KEY}
-      - JWT_ALGORITHM=${JWT_ALGORITHM}
-      - ACCESS_TOKEN_EXPIRE_MINUTES=${ACCESS_TOKEN_EXPIRE_MINUTES}
-      - REFRESH_TOKEN_EXPIRE_DAYS=${REFRESH_TOKEN_EXPIRE_DAYS}
+      - TZ=Asia/Seoul  # 한국 시간대 설정
+    command: [
+      "/usr/local/bin/wait-for-it",
+      "mysql:3306", "--",
+      "python", "server/server.py"
+    ]
 
 volumes:
   python-libs:

@@ -20,7 +20,6 @@ async def lifespan(app: FastAPI):
         await AppState.cleanup_handlers()
 
 app = FastAPI(lifespan=lifespan)
-ErrorTools.ExceptionManager.register(app)
 
 def custom_openapi():
     if app.openapi_schema:
@@ -35,13 +34,23 @@ def custom_openapi():
             "이 API는 다음과 같은 기능을 제공합니다:\n\n"
             "각 엔드포인트의 자세한 정보는 해당 엔드포인트의 문서에서 확인할 수 있습니다."
         ),
+        
     )
     openapi_schema["info"]["x-logo"] = {
         "url": "https://drive.google.com/thumbnail?id=12PqUS6bj4eAO_fLDaWQmoq94-771xfim"
     }
+    openapi_schema["components"]["securitySchemes"] = {
+    "BearerAuth": {
+        "type": "http",
+        "scheme": "bearer",
+        "bearerFormat": "JWT",
+        "description": "JWT 토큰을 입력하세요. 'Bearer ' 접두사는 자동으로 추가됩니다."
+    }
+}
     app.openapi_schema = openapi_schema
     return app.openapi_schema
 
+ErrorTools.ExceptionManager.register(app)
 app.openapi = custom_openapi
 app.add_middleware(
     CORSMiddleware,

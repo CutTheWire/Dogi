@@ -10,6 +10,7 @@ email-validator
 chromadb
 PyJWT>=2.8.0
 passlib[bcrypt]
+databases
 aiomysql
 langchain
 langchain_community

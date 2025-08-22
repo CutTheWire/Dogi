@@ -1,7 +1,8 @@
-from pydantic import BaseModel, EmailStr, Field, field_validator, conint
+from pydantic import BaseModel, EmailStr, Field, field_validator, model_validator
 from typing import Optional, List, Dict, Any
 from datetime import datetime, date
 from enum import Enum
+import re
 
 class GenderEnum(str, Enum):
     MALE = "M"
@@ -30,11 +31,12 @@ class CommonFields:
 
     # 사용자 인증 관련 필드들
     user_id_set: str = Field(
-        example="john_doe",
+        example="johndoe",
         title="사용자 ID",
-        description="사용자 고유 ID (영문, 숫자만 가능)",
+        description="사용자 고유 ID (영문, 숫자, 언더스코어만 가능)",
         min_length=3,
-        max_length=50
+        max_length=50,
+        pattern=r"^[a-zA-Z0-9_]+$"
     )
     
     email_set: EmailStr = Field(
@@ -46,7 +48,7 @@ class CommonFields:
     password_set: str = Field(
         example="SecurePassword123!",
         title="비밀번호",
-        description="사용자 비밀번호 (최소 8자)",
+        description="비밀번호 (최소 8자, 영문 대소문자, 숫자, 특수문자 포함)",
         min_length=8,
         max_length=128
     )
@@ -63,8 +65,8 @@ class CommonFields:
         None,
         example="010-1234-5678",
         title="전화번호",
-        description="사용자 전화번호",
-        max_length=20
+        description="사용자 전화번호 (010-0000-0000 형식)",
+        pattern=r"^010-\d{4}-\d{4}$"
     )
     
     birth_date_set: Optional[date] = Field(
@@ -152,20 +154,86 @@ class UserRegisterRequest(BaseModel):
     @field_validator('user_id')
     @classmethod
     def validate_user_id(cls, v):
-        if not v.isalnum():
-            raise ValueError('사용자 ID는 영문과 숫자만 사용 가능합니다.')
+        if not re.match(r"^[a-zA-Z0-9_]+$", v):
+            raise ValueError('사용자 ID는 영문, 숫자, 언더스코어만 사용 가능합니다.')
+        if v.lower() in ['admin', 'root', 'system', 'user', 'test', 'guest']:
+            raise ValueError('사용할 수 없는 사용자 ID입니다.')
         return v
+    
+    @field_validator('password')
+    @classmethod
+    def validate_password(cls, v):
+        if not re.search(r"[A-Z]", v):
+            raise ValueError('비밀번호는 최소 1개의 대문자를 포함해야 합니다.')
+        if not re.search(r"[a-z]", v):
+            raise ValueError('비밀번호는 최소 1개의 소문자를 포함해야 합니다.')
+        if not re.search(r"\d", v):
+            raise ValueError('비밀번호는 최소 1개의 숫자를 포함해야 합니다.')
+        if not re.search(r"[!@#$%^&*()_+\-=\[\]{};':\"\\|,.<>\/?]", v):
+            raise ValueError('비밀번호는 최소 1개의 특수문자를 포함해야 합니다.')
+        return v
+    
+    @field_validator('phone')
+    @classmethod
+    def validate_phone(cls, v):
+        if v is not None and not re.match(r"^010-\d{4}-\d{4}$", v):
+            raise ValueError('전화번호는 010-0000-0000 형식이어야 합니다.')
+        return v
+    
+    @field_validator('birth_date')
+    @classmethod
+    def validate_birth_date(cls, v):
+        if v is not None:
+            today = date.today()
+            age = today.year - v.year - ((today.month, today.day) < (v.month, v.day))
+            if age < 14:
+                raise ValueError('만 14세 이상만 가입 가능합니다.')
+            if age > 120:
+                raise ValueError('올바른 생년월일을 입력해주세요.')
+        return v
+    
+    @field_validator('full_name')
+    @classmethod
+    def validate_full_name(cls, v):
+        if not v.strip():
+            raise ValueError('이름은 공백일 수 없습니다.')
+        if re.search(r"[!@#$%^&*()_+\-=\[\]{};':\"\\|,.<>\/?0-9]", v):
+            raise ValueError('이름에는 특수문자나 숫자를 사용할 수 없습니다.')
+        return v.strip()
 
 class UserLoginRequest(BaseModel):
     """
     사용자 로그인 요청 모델
     """
     user_id: str = Field(
-        example="john_doe",
+        example="johndoe",
         title="사용자 ID 또는 이메일",
-        description="사용자 ID 또는 이메일 주소"
+        description="사용자 ID 또는 이메일 주소",
+        min_length=3,
+        max_length=100
     )
-    password: str = CommonFields.password_set
+    password: str = Field(
+        example="SecurePassword123!",
+        title="비밀번호",
+        description="사용자 비밀번호",
+        min_length=1,
+        max_length=128
+    )
+    
+    @field_validator('user_id')
+    @classmethod
+    def validate_user_id(cls, v):
+        v = v.strip()
+        if not v:
+            raise ValueError('사용자 ID 또는 이메일을 입력해주세요.')
+        return v
+    
+    @field_validator('password')
+    @classmethod
+    def validate_password(cls, v):
+        if not v.strip():
+            raise ValueError('비밀번호를 입력해주세요.')
+        return v
 
 class UserProfileUpdateRequest(BaseModel):
     """
@@ -185,10 +253,52 @@ class UserProfileUpdateRequest(BaseModel):
         title="이메일 주소",
         description="수정할 이메일 주소"
     )
-    phone: Optional[str] = CommonFields.phone_set
+    phone: Optional[str] = Field(
+        None,
+        example="010-1234-5678",
+        title="전화번호",
+        description="수정할 전화번호",
+        pattern=r"^010-\d{4}-\d{4}$"
+    )
     birth_date: Optional[date] = CommonFields.birth_date_set
     gender: Optional[GenderEnum] = CommonFields.gender_set
     bio: Optional[str] = CommonFields.bio_set
+    
+    @field_validator('full_name')
+    @classmethod
+    def validate_full_name(cls, v):
+        if v is not None:
+            if not v.strip():
+                raise ValueError('이름은 공백일 수 없습니다.')
+            if re.search(r"[!@#$%^&*()_+\-=\[\]{};':\"\\|,.<>\/?0-9]", v):
+                raise ValueError('이름에는 특수문자나 숫자를 사용할 수 없습니다.')
+            return v.strip()
+        return v
+    
+    @field_validator('phone')
+    @classmethod
+    def validate_phone(cls, v):
+        if v is not None and not re.match(r"^010-\d{4}-\d{4}$", v):
+            raise ValueError('전화번호는 010-0000-0000 형식이어야 합니다.')
+        return v
+    
+    @field_validator('birth_date')
+    @classmethod
+    def validate_birth_date(cls, v):
+        if v is not None:
+            today = date.today()
+            age = today.year - v.year - ((today.month, today.day) < (v.month, v.day))
+            if age < 14:
+                raise ValueError('만 14세 이상만 가입 가능합니다.')
+            if age > 120:
+                raise ValueError('올바른 생년월일을 입력해주세요.')
+        return v
+    
+    @model_validator(mode='after')
+    def validate_at_least_one_field(self):
+        if all(getattr(self, field) is None for field in ['full_name', 'email', 'phone', 'birth_date', 'gender', 'bio']):
+            raise ValueError('최소 하나의 필드는 수정해야 합니다.')
+        return self
 
 class TokenResponse(BaseModel):
     """
@@ -203,14 +313,26 @@ class RefreshTokenRequest(BaseModel):
     """
     토큰 갱신 요청 모델
     """
-    refresh_token: str = CommonFields.refresh_token_set
+    refresh_token: str = Field(
+        example="abc123def456ghi789...",
+        title="리프레시 토큰",
+        description="JWT 리프레시 토큰",
+        min_length=1
+    )
+    
+    @field_validator('refresh_token')
+    @classmethod
+    def validate_refresh_token(cls, v):
+        if not v.strip():
+            raise ValueError('리프레시 토큰을 입력해주세요.')
+        return v.strip()
 
 class UserResponse(BaseModel):
     """
     사용자 정보 응답 모델
     """
     user_id: str = Field(
-        example="john_doe",
+        example="johndoe",
         title="사용자 ID",
         description="사용자 고유 ID"
     )

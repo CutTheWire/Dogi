@@ -421,5 +421,6 @@ fastapi/models/*.gguf
 rag_test_results*.md
 basic_model_test_results*.md
 
-#mongo 디렉토리 제외
+#DB 디렉토리 제외
 mongo/data
+mysql/data

@@ -20,26 +20,28 @@ class MongoDBHandler:
             env_file_path = Path(__file__).resolve().parents[1] / ".env"
             load_dotenv(env_file_path)
             
-            # 환경 변수에서 MongoDB 연결 URI 가져오기
+            # 환경 변수에서 MongoDB 연결 정보 가져오기
             mongo_host = os.getenv("MONGO_HOST")
-            mongo_port = os.getenv("MONGO_PORT", 27017)
+            mongo_port = os.getenv("MONGO_PORT", "27017")
             mongo_user = os.getenv("MONGO_ADMIN_USER")
             mongo_password = os.getenv("MONGO_ADMIN_PASSWORD")
             mongo_db = os.getenv("MONGO_DATABASE")
-            mongo_auth = os.getenv("MONGO_AUTH")
             
             # 디버깅 코드 추가
             if not mongo_db:
                 raise ValueError("MONGO_DATABASE 환경 변수가 설정되지 않았습니다.")
             
-            # MongoDB URI 생성
+            # MongoDB URI 생성 (authSource를 admin으로 설정)
             self.mongo_uri = (
-                f"mongodb://{mongo_user}:{mongo_password}@{mongo_host}:{mongo_port}/{mongo_db}?authSource={mongo_auth}"
+                f"mongodb://{mongo_user}:{mongo_password}@{mongo_host}:{mongo_port}/{mongo_db}?authSource=admin"
             )
+            
+            print(f"MongoDB URI: {self.mongo_uri}")  # 디버깅용
             
             # MongoDB 클라이언트 초기화
             self.client = AsyncIOMotorClient(self.mongo_uri)
             self.db = self.client[mongo_db]
+            
         except PyMongoError as e:
             raise ErrorTools.InternalServerErrorException(detail=f"MongoDB connection error: {str(e)}")
         except Exception as e:
