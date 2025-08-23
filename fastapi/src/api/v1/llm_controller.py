@@ -1,7 +1,9 @@
 from fastapi import APIRouter, Request, Depends, Path, Header, HTTPException
-from fastapi.responses import JSONResponse
+from fastapi.responses import JSONResponse, StreamingResponse
 from pydantic import ValidationError
 from typing import Optional
+import json
+import asyncio
 
 from core import Dependencies
 from llm import Llama
@@ -31,7 +33,6 @@ def get_current_user_id(authorization: str = Header(..., description="Bearer JWT
         HTTPException: 토큰이 유효하지 않거나 user_id를 추출할 수 없는 경우
     """
     try:
-        # "Bearer " 접두사 제거
         if not authorization.startswith("Bearer "):
             raise HTTPException(
                 status_code=401,
@@ -171,7 +172,7 @@ async def delete_session(
     except Exception as e:
         raise ErrorTools.InternalServerErrorException(detail=f"세션 삭제 중 오류: {str(e)}")
 
-@llm_router.post("/sessions/{session_id}/messages", summary="LLM 세션에 메시지 추가", status_code=201)
+@llm_router.post("/sessions/{session_id}/messages", summary="LLM 세션에 메시지 추가")
 async def add_message(
     request: Schema.MessageRequest,
     session_id: str = Path(..., description="세션 ID"),
@@ -180,47 +181,45 @@ async def add_message(
     llama_model: Llama.LlamaModel = Depends(Dependencies.get_llama_model)
 ):
     """
-    LLM 세션에 새로운 메시지를 추가합니다.
-    
-    Args:
-        request: 메시지 요청 데이터
-        session_id: 세션 ID
-        current_user_id: JWT 토큰에서 추출한 현재 사용자 ID
-        mongo_handler: MongoDB 핸들러
-        llama_model: Llama 모델
-    
-    Returns:
-        JSONResponse: 추가된 메시지 정보
+    LLM 세션에 새로운 메시지를 추가합니다. (스트리밍 응답)
     """
-    try:
-        # 기존 대화 목록 가져오기
-        chat_list = await mongo_handler.get_llm_messages(current_user_id, session_id)
-        
-        answer = llama_model.generate_response(
-            input_text=request.content,
-            chat_list=chat_list
-        )
-        
-        # MongoDB에 메시지 저장
-        message = await mongo_handler.add_llm_message(
-            user_id=current_user_id,
-            session_id=session_id,
-            content=request.content,
-            model_id=request.model_id,
-            answer=answer
-        )
-        
-        return JSONResponse(
-            content={
-                "message_idx": message["message_idx"],
-                "answer": message["answer"],
-                "created_at": message["created_at"].isoformat(),
-                "updated_at": message["updated_at"].isoformat()
-            },
-            status_code=201
-        )
-    except Exception as e:
-        raise ErrorTools.InternalServerErrorException(detail=f"메시지 추가 중 오류: {str(e)}")
+    async def stream_response():
+        try:
+            # 기존 대화 목록 가져오기
+            chat_list = await mongo_handler.get_llm_messages(current_user_id, session_id)
+            
+            answer_chunks = []
+            
+            # 스트리밍으로 응답 생성 및 전송
+            for chunk in llama_model.generate_response_stream(
+                input_text=request.content,
+                chat_list=chat_list
+            ):
+                answer_chunks.append(chunk)
+                yield chunk
+            
+            # 전체 응답 완성 후 MongoDB에 저장
+            full_answer = "".join(answer_chunks)
+            await mongo_handler.add_llm_message(
+                user_id=current_user_id,
+                session_id=session_id,
+                content=request.content,
+                model_id=request.model_id,
+                answer=full_answer
+            )
+            
+        except Exception as e:
+            yield f"[ERROR] 메시지 추가 중 오류: {str(e)}"
+    
+    return StreamingResponse(
+        stream_response(),
+        media_type="text/plain",
+        headers={
+            "Cache-Control": "no-cache",
+            "Connection": "keep-alive",
+            "X-Accel-Buffering": "no"
+        }
+    )
 
 @llm_router.get("/sessions/{session_id}/messages", summary="LLM 세션 메시지 목록 조회")
 async def get_messages(
@@ -267,47 +266,47 @@ async def update_last_message(
     llama_model: Llama.LlamaModel = Depends(Dependencies.get_llama_model)
 ):
     """
-    LLM 세션의 마지막 메시지를 수정합니다.
-    
-    Args:
-        request: 메시지 수정 요청 데이터
-        session_id: 세션 ID
-        current_user_id: JWT 토큰에서 추출한 현재 사용자 ID
-        mongo_handler: MongoDB 핸들러
-        llama_model: Llama 모델
-    
-    Returns:
-        JSONResponse: 수정된 메시지 정보
+    LLM 세션의 마지막 메시지를 수정합니다. (스트리밍 응답)
     """
-    try:
-        # 기존 대화 목록 가져오기 (마지막 메시지 제외)
-        chat_list = await mongo_handler.get_llm_messages(current_user_id, session_id)
-        if chat_list:
-            chat_list = chat_list[:-1]  # 마지막 메시지 제외
-        
-        # Llama 모델로 새로운 응답 생성
-        answer = llama_model.generate_response(
-            input_text=request.content,
-            chat_list=chat_list
-        )
-        
-        # MongoDB에서 마지막 메시지 수정
-        message = await mongo_handler.update_last_llm_message(
-            user_id=current_user_id,
-            session_id=session_id,
-            content=request.content,
-            model_id=request.model_id,
-            answer=answer
-        )
-        
-        return {
-            "message_idx": message["message_idx"],
-            "answer": message["answer"],
-            "created_at": message["created_at"].isoformat(),
-            "updated_at": message["updated_at"].isoformat()
+    async def stream_response():
+        try:
+            # 기존 대화 목록 가져오기 (마지막 메시지 제외)
+            chat_list = await mongo_handler.get_llm_messages(current_user_id, session_id)
+            if chat_list:
+                chat_list = chat_list[:-1]
+            
+            answer_chunks = []
+            
+            # 스트리밍으로 응답 생성 및 전송
+            for chunk in llama_model.generate_response_stream(
+                input_text=request.content,
+                chat_list=chat_list
+            ):
+                answer_chunks.append(chunk)
+                yield chunk
+            
+            # 전체 응답 완성 후 MongoDB에서 마지막 메시지 수정
+            full_answer = "".join(answer_chunks)
+            await mongo_handler.update_last_llm_message(
+                user_id=current_user_id,
+                session_id=session_id,
+                content=request.content,
+                model_id=request.model_id,
+                answer=full_answer
+            )
+            
+        except Exception as e:
+            yield f"[ERROR] 메시지 수정 중 오류: {str(e)}"
+    
+    return StreamingResponse(
+        stream_response(),
+        media_type="text/plain",
+        headers={
+            "Cache-Control": "no-cache",
+            "Connection": "keep-alive",
+            "X-Accel-Buffering": "no"
         }
-    except Exception as e:
-        raise ErrorTools.InternalServerErrorException(detail=f"메시지 수정 중 오류: {str(e)}")
+    )
 
 @llm_router.delete("/sessions/{session_id}/messages", summary="LLM 세션 마지막 대화 삭제", status_code=204)
 async def delete_last_message(
@@ -344,51 +343,52 @@ async def regenerate_last_message(
     llama_model: Llama.LlamaModel = Depends(Dependencies.get_llama_model)
 ):
     """
-    LLM 세션의 마지막 메시지를 재생성합니다.
-    
-    Args:
-        request: 재생성 요청 데이터
-        session_id: 세션 ID
-        current_user_id: JWT 토큰에서 추출한 현재 사용자 ID
-        mongo_handler: MongoDB 핸들러
-        llama_model: Llama 모델
-    
-    Returns:
-        JSONResponse: 재생성된 메시지 정보
+    LLM 세션의 마지막 메시지를 재생성합니다. (스트리밍 응답)
     """
-    try:
-        # 기존 대화 목록 가져오기
-        chat_list = await mongo_handler.get_llm_messages(current_user_id, session_id)
-        if not chat_list:
-            raise ErrorTools.NotFoundException("재생성할 메시지가 없습니다.")
-        
-        # 마지막 메시지의 content 가져오기
-        last_message = chat_list[-1]
-        content = last_message["content"]
-        
-        # 마지막 메시지 제외한 대화 목록
-        chat_list = chat_list[:-1]
-        
-        # Llama 모델로 새로운 응답 생성
-        answer = llama_model.generate_response(
-            input_text=content,
-            chat_list=chat_list
-        )
-        
-        # MongoDB에서 마지막 메시지 재생성
-        message = await mongo_handler.regenerate_last_llm_message(
-            user_id=current_user_id,
-            session_id=session_id,
-            model_id=request.model_id,
-            answer=answer
-        )
-        
-        return {
-            "message_idx": message["message_idx"],
-            "answer": message["answer"],
-            "created_at": message["created_at"].isoformat(),
-            "updated_at": message["updated_at"].isoformat()
+    async def stream_response():
+        try:
+            # 기존 대화 목록 가져오기
+            chat_list = await mongo_handler.get_llm_messages(current_user_id, session_id)
+            if not chat_list:
+                yield "[ERROR] 재생성할 메시지가 없습니다."
+                return
+            
+            # 마지막 메시지의 content 가져오기
+            last_message = chat_list[-1]
+            content = last_message["content"]
+            
+            # 마지막 메시지 제외한 대화 목록
+            chat_list = chat_list[:-1]
+            
+            answer_chunks = []
+            
+            # 스트리밍으로 응답 생성 및 전송
+            for chunk in llama_model.generate_response_stream(
+                input_text=content,
+                chat_list=chat_list
+            ):
+                answer_chunks.append(chunk)
+                yield chunk
+            
+            # 전체 응답 완성 후 MongoDB에서 마지막 메시지 재생성
+            full_answer = "".join(answer_chunks)
+            await mongo_handler.regenerate_last_llm_message(
+                user_id=current_user_id,
+                session_id=session_id,
+                model_id=request.model_id,
+                answer=full_answer
+            )
+            
+        except Exception as e:
+            yield f"[ERROR] 메시지 재생성 중 오류: {str(e)}"
+    
+    return StreamingResponse(
+        stream_response(),
+        media_type="text/plain",
+        headers={
+            "Cache-Control": "no-cache",
+            "Connection": "keep-alive",
+            "X-Accel-Buffering": "no"
         }
-    except Exception as e:
-        raise ErrorTools.InternalServerErrorException(detail=f"메시지 재생성 중 오류: {str(e)}")
+    )
 

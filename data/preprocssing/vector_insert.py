@@ -218,6 +218,7 @@ class VetDataVectorizer:
             'corpus_documents': 0,
             'qa_documents': 0,
             'failed_files': 0,
+            'failed_file_list': [],  # 실패한 파일 목록 추가
             'processing_time': 0
         }
         
@@ -329,6 +330,49 @@ class VetDataVectorizer:
             
         return chunks
     
+    def safe_load_json(self, file_path: str) -> Dict[str, Any]:
+        """
+        안전한 JSON 파일 로드 (여러 인코딩 및 에러 처리)
+        
+        Args:
+            file_path (str): JSON 파일 경로
+        
+        Returns:
+            Dict[str, Any]: 파싱된 JSON 데이터 (실패시 빈 딕셔너리)
+        """
+        encodings = ['utf-8-sig', 'utf-8', 'cp949', 'euc-kr']
+        
+        for encoding in encodings:
+            try:
+                with open(file_path, 'r', encoding=encoding) as f:
+                    data = json.load(f)
+                    return data
+            except UnicodeDecodeError:
+                continue
+            except json.JSONDecodeError as e:
+                # JSON 파싱 에러를 더 자세히 로깅
+                logger.warning(f"JSON parsing error in {file_path}: {e}")
+                # 손상된 JSON 파일 복구 시도
+                try:
+                    with open(file_path, 'r', encoding=encoding) as f:
+                        content = f.read()
+                        # 간단한 JSON 복구 시도 (예: 마지막 콤마 제거)
+                        content = content.rstrip()
+                        if content.endswith(','):
+                            content = content[:-1]
+                        data = json.loads(content)
+                        return data
+                except:
+                    continue
+            except Exception as e:
+                logger.warning(f"Unexpected error loading {file_path}: {e}")
+                continue
+        
+        # 모든 시도가 실패한 경우
+        self.stats['failed_files'] += 1
+        self.stats['failed_file_list'].append(file_path)
+        return {}
+    
     def process_corpus_data(self, file_path: str) -> List[Dict[str, Any]]:
         """
         원천데이터(말뭉치) 처리
@@ -339,12 +383,9 @@ class VetDataVectorizer:
         Returns:
             List[Dict[str, Any]]: 처리된 문서 리스트
         """
-        try:
-            with open(file_path, 'r', encoding='utf-8-sig') as f:
-                data = json.load(f)
-        except UnicodeDecodeError:
-            with open(file_path, 'r', encoding='utf-8') as f:
-                data = json.load(f)
+        data = self.safe_load_json(file_path)
+        if not data:
+            return []
         
         try:
             documents = []
@@ -356,8 +397,15 @@ class VetDataVectorizer:
             department = data.get('department', '')
             disease_content = data.get('disease', '')
             
+            # disease_content가 문자열이 아닌 경우 처리
+            if not isinstance(disease_content, str):
+                disease_content = str(disease_content) if disease_content else ""
+            
             # 질병 내용을 청크로 분할
             cleaned_content = self.clean_text(disease_content)
+            if not cleaned_content:
+                return []
+                
             chunks = self.chunk_text(cleaned_content, max_length=500)
             
             for i, chunk in enumerate(chunks):
@@ -382,7 +430,9 @@ class VetDataVectorizer:
             return documents
             
         except Exception as e:
+            logger.warning(f"Error processing corpus file {file_path}: {e}")
             self.stats['failed_files'] += 1
+            self.stats['failed_file_list'].append(file_path)
             return []
     
     def process_qa_data(self, file_path: str) -> List[Dict[str, Any]]:
@@ -395,12 +445,10 @@ class VetDataVectorizer:
         Returns:
             List[Dict[str, Any]]: 처리된 문서 리스트
         """
-        try:    
-            with open(file_path, 'r', encoding='utf-8-sig') as f:
-                data = json.load(f)
-        except UnicodeDecodeError:
-            with open(file_path, 'r', encoding='utf-8') as f:
-                data = json.load(f)
+        data = self.safe_load_json(file_path)
+        if not data:
+            return []
+            
         try:
             documents = []
             
@@ -413,11 +461,16 @@ class VetDataVectorizer:
             user_input = qa.get('input', '')
             output = qa.get('output', '')
             
+            # 문자열이 아닌 경우 처리
+            instruction = str(instruction) if instruction else ""
+            user_input = str(user_input) if user_input else ""
+            output = str(output) if output else ""
+            
             # 질문 문서
-            if user_input:
+            if user_input and len(user_input.strip()) > 10:
                 doc_question = {
                     'id': f"{Path(file_path).stem}_question",
-                    'content': f"{instruction}\n\n질문: {user_input}",
+                    'content': f"{instruction}\n\n질문: {user_input}".strip(),
                     'metadata': {
                         'source_type': 'qa_question',
                         'life_cycle': meta.get('lifeCycle', ''),
@@ -430,7 +483,7 @@ class VetDataVectorizer:
                 documents.append(doc_question)
             
             # 답변 문서
-            if output:
+            if output and len(output.strip()) > 10:
                 doc_answer = {
                     'id': f"{Path(file_path).stem}_answer",
                     'content': f"답변: {output}",
@@ -449,7 +502,9 @@ class VetDataVectorizer:
             return documents
             
         except Exception as e:
+            logger.warning(f"Error processing QA file {file_path}: {e}")
             self.stats['failed_files'] += 1
+            self.stats['failed_file_list'].append(file_path)
             return []
     
     def insert_documents(self, documents: List[Dict[str, Any]]):
@@ -491,7 +546,7 @@ class VetDataVectorizer:
                 self.stats['qa_documents'] += len(documents)
             
         except Exception as e:
-            pass
+            logger.warning(f"Error inserting documents: {e}")
     
     def process_files_with_progress(self, file_list: List[Path]):
         """
@@ -517,7 +572,7 @@ class VetDataVectorizer:
             rate = (idx + 1) / elapsed if elapsed > 0 else 0
             eta = (total_files - idx - 1) / rate if rate > 0 else 0
             
-            progress_info = f" {filename} |  {self.stats['total_documents']:,}docs |  {rate:.1f}f/s |  {eta:.0f}s"
+            progress_info = f" {filename} | {self.stats['total_documents']:,}docs | {rate:.1f}f/s | {eta:.0f}s"
             
             # 진행률 표시
             print_progress_inline(
@@ -528,17 +583,24 @@ class VetDataVectorizer:
             )
             
             # 파일 유형에 따라 처리
-            if "말뭉치 데이터" in str(file_path):
-                documents = self.process_corpus_data(str(file_path))
-            elif "질의응답 데이터" in str(file_path):
-                documents = self.process_qa_data(str(file_path))
-            else:
+            try:
+                if "말뭉치 데이터" in str(file_path):
+                    documents = self.process_corpus_data(str(file_path))
+                elif "질의응답 데이터" in str(file_path):
+                    documents = self.process_qa_data(str(file_path))
+                else:
+                    continue
+                
+                if documents:
+                    self.insert_documents(documents)
+                
+                self.stats['processed_files'] += 1
+                
+            except Exception as e:
+                logger.warning(f"Unexpected error processing {file_path}: {e}")
+                self.stats['failed_files'] += 1
+                self.stats['failed_file_list'].append(str(file_path))
                 continue
-            
-            if documents:
-                self.insert_documents(documents)
-            
-            self.stats['processed_files'] += 1
         
         self.stats['processing_time'] = time.time() - start_time
         print(f"\n 파일 처리 완료!")
@@ -555,11 +617,20 @@ class VetDataVectorizer:
         print(f" 총 처리된 문서: {self.stats['total_documents']:,}개")
         print(f" 원천데이터 문서: {self.stats['corpus_documents']:,}개")
         print(f" 질의응답 문서: {self.stats['qa_documents']:,}개")
-        print(f" 처리된 파일: {self.stats['processed_files']:,}개")
+        print(f" 성공 처리 파일: {self.stats['processed_files']:,}개")
         print(f" 실패한 파일: {self.stats['failed_files']:,}개")
-        print(f"  처리 시간: {self.stats['processing_time']:.2f}초")
+        print(f" 처리 시간: {self.stats['processing_time']:.2f}초")
         print(f" 평균 속도: {self.stats['processed_files']/self.stats['processing_time']:.1f} 파일/초")
-        print(f"  ChromaDB 저장된 문서: {count:,}개")
+        print(f" ChromaDB 저장된 문서: {count:,}개")
+        
+        # 실패한 파일 목록 표시 (처음 5개만)
+        if self.stats['failed_file_list']:
+            print(f"\n 실패한 파일 예시 (처음 5개):")
+            for failed_file in self.stats['failed_file_list'][:5]:
+                print(f"  - {Path(failed_file).name}")
+            if len(self.stats['failed_file_list']) > 5:
+                print(f"  ... 및 {len(self.stats['failed_file_list']) - 5}개 더")
+        
         print("="*60)
         
         # 샘플 문서 조회

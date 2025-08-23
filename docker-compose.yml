@@ -72,7 +72,7 @@ services:
     volumes:
       - ./mongo/data:/data/db:rw
       - ./mongo/logs:/var/logs/mongodb:rw
-      - ./mongo/.env:/docker-entrypoint-initdb.d/.env:ro
+      - ./.env:/docker-entrypoint-initdb.d/.env:ro
 
   fastapi:
     restart: always
@@ -86,7 +86,7 @@ services:
       - python-libs:/opt/python-libs:ro
       - ./fastapi/models/:/app/fastapi/models/:rw
       - ./fastapi/logs:/app/logs:rw
-      - ./fastapi/src/.env:/app/src/.env:ro
+      - ./.env:/app/src/.env:ro
     depends_on:
       - python-libs-init
       - chromadb
