@@ -1,0 +1,72 @@
+/* Base Styles import */
+@import url('./base/reset.css');
+@import url('./base/variables.css');
+@import url('./base/typography.css');
+
+/* Layout import */
+@import url('./layout/grid.css');
+
+/* Component import */
+@import url('./components/buttons.css');
+@import url('./components/forms.css');
+@import url('./components/cards.css');
+@import url('./components/modals.css');
+
+/* Utils import */
+@import url('./utils/spacing.css');
+@import url('./utils/display.css');
+@import url('./utils/helpers.css');
+@import url('./utils/responsive.css');
+
+/* 페이지별 커스텀 스타일 */
+body {
+    background: var(--primary-gradient);
+    min-height: 100vh;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+}
+
+.login-container {
+    width: 100%;
+    max-width: 400px;
+    padding: 20px;
+}
+
+.login-form, .register-form {
+    text-align: left;
+}
+
+.form-footer {
+    margin-top: 20px;
+    text-align: center;
+}
+
+.form-footer a {
+    color: var(--primary-blue);
+    text-decoration: none;
+    font-weight: 500;
+}
+
+.form-footer a:hover {
+    text-decoration: underline;
+}
+
+.register-form {
+    padding: 30px;
+}
+
+/* 비밀번호 입력 필드 글자색 설정 */
+#password,
+#reg_password {
+    color: #ffffff;
+}
+
+/* 로그인 페이지에서 모달 외부 클릭 방지 */
+.modal {
+    pointer-events: auto;
+}
+
+.modal-content {
+    pointer-events: auto;
+}

@@ -16,3 +16,5 @@ langchain
 langchain_community
 langchain-chroma
 langchain-core
+jinja2
+python-multipart

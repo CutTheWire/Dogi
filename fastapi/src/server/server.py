@@ -2,9 +2,10 @@ import uvicorn
 from fastapi import FastAPI
 from fastapi.openapi.utils import get_openapi
 from fastapi.middleware.cors import CORSMiddleware
+from fastapi.staticfiles import StaticFiles
 from contextlib import asynccontextmanager
 
-from api import v1
+from api import Page, v1
 from core import AppState
 from domain import ErrorTools
 
@@ -20,6 +21,9 @@ async def lifespan(app: FastAPI):
         await AppState.cleanup_handlers()
 
 app = FastAPI(lifespan=lifespan)
+
+# Static 파일 마운트 - Docker 컨테이너 경로에 맞게 수정
+app.mount("/static", StaticFiles(directory="../static"), name="static")
 
 def custom_openapi():
     if app.openapi_schema:
@@ -58,6 +62,12 @@ app.add_middleware(
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
+)
+
+app.include_router(
+    Page.page_router,
+    prefix="",
+    tags=["Page Router"]
 )
 
 app.include_router(

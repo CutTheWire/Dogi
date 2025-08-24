@@ -86,6 +86,7 @@ services:
       - python-libs:/opt/python-libs:ro
       - ./fastapi/models/:/app/fastapi/models/:rw
       - ./fastapi/logs:/app/logs:rw
+      - ./fastapi/static:/app/static:ro
       - ./.env:/app/src/.env:ro
     depends_on:
       - python-libs-init
