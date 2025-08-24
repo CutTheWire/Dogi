@@ -4,7 +4,7 @@ FastAPI 애플리케이션에서 발생하는 예외를 처리하는 모듈입�
 import uuid
 import os
 import logging
-import logging.handlers  # 이 줄을 추가
+import logging.handlers
 import traceback
 from pathlib import Path
 from datetime import datetime
@@ -20,7 +20,7 @@ from starlette.middleware.base import BaseHTTPMiddleware
 # ==========================
 # 1. 로그 디렉토리 및 설정
 # ==========================
-BASE_DIR = Path(__file__).resolve().parents[3]
+BASE_DIR = Path(__file__).resolve().parents[2]
 LOG_DIR = os.path.join(BASE_DIR, "logs")
 os.makedirs(LOG_DIR, exist_ok=True)
 
@@ -86,6 +86,10 @@ class UnauthorizedException(BaseCustomException):
 class ForbiddenException(BaseCustomException):
     def __init__(self, detail="Forbidden"):
         super().__init__(403, detail)
+
+class ConflictException(BaseCustomException):
+    def __init__(self, detail="Conflict"):
+        super().__init__(409, detail)
 
 class ValueErrorException(BaseCustomException):
     def __init__(self, detail="Invalid value"):
@@ -154,15 +158,16 @@ def log_error(
 
 class ExceptionHandlerFactory:
     handlers: Dict[Type[HTTPException], Callable[[Request, HTTPException], JSONResponse]] = {
-        NotFoundException: lambda req, exc: JSONResponse(status_code=exc.status_code, content={"detail": "Not found"}),
-        BadRequestException: lambda req, exc: JSONResponse(status_code=exc.status_code, content={"detail": "Bad request"}),
-        UnauthorizedException: lambda req, exc: JSONResponse(status_code=exc.status_code, content={"detail": "Unauthorized"}),
-        ForbiddenException: lambda req, exc: JSONResponse(status_code=exc.status_code, content={"detail": "Forbidden"}),
-        ValueErrorException: lambda req, exc: JSONResponse(status_code=exc.status_code, content={"detail": "Invalid input"}),
-        InternalServerErrorException: lambda req, exc: JSONResponse(status_code=exc.status_code, content={"detail": "Server error"}),
-        DatabaseErrorException: lambda req, exc: JSONResponse(status_code=exc.status_code, content={"detail": "Database error"}),
+        NotFoundException: lambda req, exc: JSONResponse(status_code=exc.status_code, content={"detail": exc.detail}),
+        BadRequestException: lambda req, exc: JSONResponse(status_code=exc.status_code, content={"detail": exc.detail}),
+        UnauthorizedException: lambda req, exc: JSONResponse(status_code=exc.status_code, content={"detail": exc.detail}),
+        ForbiddenException: lambda req, exc: JSONResponse(status_code=exc.status_code, content={"detail": exc.detail}),
+        ConflictException: lambda req, exc: JSONResponse(status_code=exc.status_code, content={"detail": exc.detail}),
+        ValueErrorException: lambda req, exc: JSONResponse(status_code=exc.status_code, content={"detail": exc.detail}),
+        InternalServerErrorException: lambda req, exc: JSONResponse(status_code=exc.status_code, content={"detail": exc.detail}),
+        DatabaseErrorException: lambda req, exc: JSONResponse(status_code=exc.status_code, content={"detail": exc.detail}),
         IPRestrictedException: lambda req, exc: JSONResponse(status_code=exc.status_code, content={"detail": exc.detail}),
-        MethodNotAllowedException: lambda req, exc: JSONResponse(status_code=exc.status_code, content={"detail": "Not allowed"})
+        MethodNotAllowedException: lambda req, exc: JSONResponse(status_code=exc.status_code, content={"detail": exc.detail})
     }
 
     @staticmethod
@@ -237,5 +242,4 @@ class ExceptionManager:
         app.add_exception_handler(SQLAlchemyError, ExceptionHandlerFactory.database_handler)
         app.add_exception_handler(RouteNotFoundException, ExceptionHandlerFactory.generic_handler)
         app.add_middleware(ErrorLoggingMiddleware)
-        app.add_middleware(RouteLoggingMiddleware)
         app.add_middleware(RouteLoggingMiddleware)

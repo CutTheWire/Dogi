@@ -1,0 +1,194 @@
+/* 폼 기본 스타일 */
+.form {
+    width: 100%;
+}
+
+.form-group {
+    margin-bottom: 20px;
+}
+
+.form-label {
+    display: block;
+    margin-bottom: 8px;
+    color: var(--gray-700);
+    font-weight: 500;
+    font-size: 14px;
+}
+
+.form-input,
+.form-select,
+.form-textarea {
+    width: 100%;
+    padding: 12px 16px;
+    border: 1px solid var(--gray-200);
+    border-radius: var(--radius-md);
+    font-size: 14px;
+    font-family: inherit;
+    background-color: var(--white);
+    transition: border-color 0.2s ease, box-shadow 0.2s ease;
+    box-sizing: border-box;
+}
+
+.form-input:focus,
+.form-select:focus,
+.form-textarea:focus {
+    outline: none;
+    border-color: var(--primary-blue);
+    box-shadow: 0 0 0 3px rgba(99, 102, 241, 0.1);
+}
+
+.form-input:disabled {
+    background-color: var(--gray-50);
+    color: var(--gray-500);
+    cursor: not-allowed;
+}
+
+.form-textarea {
+    resize: vertical;
+    min-height: 100px;
+    line-height: 1.5;
+}
+
+/* 채팅용 텍스트 영역 */
+.form-textarea.chat-input {
+    min-height: 44px;
+    max-height: 120px;
+    resize: none;
+    overflow-y: auto;
+    line-height: 1.4;
+}
+
+.form-textarea.chat-input::-webkit-scrollbar {
+    width: 4px;
+}
+
+.form-textarea.chat-input::-webkit-scrollbar-track {
+    background: transparent;
+}
+
+.form-textarea.chat-input::-webkit-scrollbar-thumb {
+    background: var(--gray-300);
+    border-radius: 2px;
+}
+
+.form-textarea.chat-input::-webkit-scrollbar-thumb:hover {
+    background: var(--gray-400);
+}
+
+.form-hint {
+    display: block;
+    margin-top: 4px;
+    font-size: 12px;
+    color: var(--gray-500);
+    line-height: 1.4;
+}
+
+.form-error {
+    color: var(--error);
+    font-size: 12px;
+    margin-top: 4px;
+}
+
+/* 전화번호 입력 그룹 스타일 */
+.phone-input-group {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    width: 100%;
+}
+
+.phone-input {
+    flex: 1;
+    text-align: center;
+    padding: 12px 8px;
+    min-width: 0;
+}
+
+.phone-input:first-child {
+    background-color: var(--gray-50);
+    color: var(--gray-600);
+    cursor: not-allowed;
+    flex: 0.8;
+}
+
+.phone-input:nth-child(3),
+.phone-input:nth-child(5) {
+    flex: 1.2;
+}
+
+.phone-separator {
+    font-weight: 600;
+    color: var(--gray-400);
+    -webkit-user-select: none;
+    user-select: none;
+    flex-shrink: 0;
+    font-size: 16px;
+}
+
+/* 폼 액션 버튼 그룹 */
+.form-actions {
+    display: flex;
+    flex-direction: column;
+    gap: 12px;
+    margin-top: 24px;
+    padding-top: 20px;
+    border-top: 1px solid var(--gray-200);
+}
+
+/* 회원가입 폼 스타일 */
+.register-form {
+    padding: 30px;
+}
+
+/* 반응형 디자인 */
+@media (max-width: 768px) {
+    .register-form {
+        padding: 20px;
+    }
+    
+    .phone-input-group {
+        gap: 6px;
+    }
+    
+    .phone-input {
+        padding: 10px 6px;
+        font-size: 14px;
+    }
+    
+    .phone-separator {
+        font-size: 14px;
+    }
+    
+    .form-textarea.chat-input {
+        min-height: 40px;
+        max-height: 100px;
+    }
+}
+
+@media (max-width: 480px) {
+    .register-form {
+        padding: 15px;
+    }
+    
+    .form-group {
+        margin-bottom: 16px;
+    }
+    
+    .phone-input-group {
+        gap: 4px;
+    }
+    
+    .phone-input {
+        padding: 8px 4px;
+        font-size: 13px;
+    }
+    
+    .phone-separator {
+        font-size: 13px;
+    }
+    
+    .form-textarea.chat-input {
+        min-height: 36px;
+        max-height: 80px;
+    }
+}

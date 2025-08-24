@@ -1,0 +1,28 @@
+{
+    "models": [
+        {
+            "id": "llama3",
+            "vendor": "Meta",
+            "name": "Llama 3",
+            "description": "성능이 향상된 차세대 Llama 시리즈 언어 모델."
+        },
+        {
+            "id": "gpt4o",
+            "vendor": "OpenAI",
+            "name": "GPT-4o",
+            "description": "텍스트와 멀티모달 처리에 뛰어난 OpenAI의 고성능 언어 모델."
+        },
+        {
+            "id": "gpt41",
+            "vendor": "OpenAI",
+            "name": "GPT-4.1",
+            "description": "고급 추론 능력과 안정성을 갖춘 GPT-4 시리즈의 최신 버전."
+        },
+        {
+            "id": "gpt5",
+            "vendor": "OpenAI",
+            "name": "GPT-5",
+            "description": "추론, 이해, 복잡한 작업 처리 능력이 크게 향상된 차세대 OpenAI 언어 모델."
+        }
+    ]
+}

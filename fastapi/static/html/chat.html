@@ -1,0 +1,68 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Dogi - AI 상담</title>
+    <link rel="stylesheet" href="/static/css/chat.css">
+    <!-- marked.js 라이브러리 추가 (마크다운 파싱) -->
+    <script src="https://cdn.jsdelivr.net/npm/marked/marked.min.js"></script>
+    <!-- highlight.js 추가 (코드 하이라이팅) -->
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.9.0/styles/github.min.css">
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.9.0/highlight.min.js"></script>
+</head>
+<body>
+    <div class="chat-container">
+        <header class="chat-header">
+            <div class="header-left">
+                <button id="backBtn" class="btn btn-secondary btn-sm">← 돌아가기</button>
+                <h1>Dogi AI 상담</h1>
+            </div>
+            <div class="header-right">
+                <button id="sessionsBtn" class="btn btn-secondary btn-sm">대화 목록</button>
+            </div>
+        </header>
+
+        <div class="chat-layout">
+            <main class="chat-main">
+                <div id="chatMessages" class="chat-messages">
+                    <div class="welcome-message">
+                        <div class="ai-avatar">🐕</div>
+                        <div class="message-content">
+                            <p>안녕하세요! 저는 Dogi AI입니다.</p>
+                            <p>반려견의 건강과 관련된 궁금한 점이 있으시면 언제든 물어보세요.</p>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="chat-input-container">
+                    <div class="input-group">
+                        <textarea id="messageInput" class="form-textarea chat-input" placeholder="반려견에 대해 궁금한 점을 입력하세요..." rows="1"></textarea>
+                        <button id="sendBtn" class="btn btn-primary">전송</button>
+                    </div>
+                </div>
+            </main>
+        </div>
+    </div>
+
+    <!-- 대화목록 모달 -->
+    <div id="sessionsModal" class="modal sessions-modal">
+        <div class="modal-content sessions-modal-content">
+            <div class="modal-header">
+                <h3>대화 목록</h3>
+                <div class="header-actions">
+                    <button id="sidebarNewChatBtn" class="btn btn-circle btn-primary" title="새 대화">+</button>
+                    <button type="button" class="close-btn" id="closeSessionsModal">&times;</button>
+                </div>
+            </div>
+            <div class="modal-body">
+                <div id="sessionsList" class="sessions-list">
+                    <!-- 세션 목록이 여기에 로드됩니다 -->
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script src="/static/js/chat.js"></script>
+</body>
+</html>

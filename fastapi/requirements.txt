@@ -1,9 +1,20 @@
 fastapi
 uvicorn
+python-dotenv
+motor
+pymongo
+itsdangerous>=2.0.1
+starlette
+pydantic[email]
+email-validator
+chromadb
+PyJWT>=2.8.0
+passlib[bcrypt]
+databases
+aiomysql
 langchain
 langchain_community
-vllm --extra-index-url https://download.pytorch.org/whl/cu121
-torch
-transformers
-huggingface_hub
-python-dotenv
+langchain-chroma
+langchain-core
+jinja2
+python-multipart

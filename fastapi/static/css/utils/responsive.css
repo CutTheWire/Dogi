@@ -1,0 +1,109 @@
+/* 반응형 디스플레이 */
+@media (max-width: 576px) {
+    .hidden-xs {
+        display: none !important;
+    }
+    
+    .visible-xs {
+        display: block !important;
+    }
+}
+
+@media (max-width: 768px) {
+    .hidden-sm {
+        display: none !important;
+    }
+    
+    .visible-sm {
+        display: block !important;
+    }
+    
+    /* 모바일 텍스트 크기 */
+    .text-responsive {
+        font-size: 0.9rem;
+    }
+    
+    /* 모바일 패딩 조정 */
+    .p-responsive {
+        padding: 15px;
+    }
+    
+    /* 모바일 마진 조정 */
+    .m-responsive {
+        margin: 10px;
+    }
+}
+
+@media (max-width: 992px) {
+    .hidden-md {
+        display: none !important;
+    }
+    
+    .visible-md {
+        display: block !important;
+    }
+}
+
+@media (max-width: 1200px) {
+    .hidden-lg {
+        display: none !important;
+    }
+    
+    .visible-lg {
+        display: block !important;
+    }
+}
+
+/* 모바일 최적화 */
+@media (max-width: 768px) {
+    .mobile-full {
+        width: 100% !important;
+    }
+    
+    .mobile-center {
+        text-align: center !important;
+    }
+    
+    .mobile-stack > * {
+        display: block !important;
+        width: 100% !important;
+        margin-bottom: 10px !important;
+    }
+    
+    .mobile-hide {
+        display: none !important;
+    }
+    
+    .mobile-show {
+        display: block !important;
+    }
+}
+
+/* 터치 최적화 */
+@media (hover: none) and (pointer: coarse) {
+    .btn,
+    .nav-link,
+    .session-item {
+        min-height: 44px;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+    }
+    
+    .form-input,
+    .form-select,
+    .form-textarea {
+        min-height: 44px;
+    }
+}
+
+/* 애니메이션 줄이기 설정 */
+@media (prefers-reduced-motion: reduce) {
+    *,
+    *::before,
+    *::after {
+        animation-duration: 0.01ms !important;
+        animation-iteration-count: 1 !important;
+        transition-duration: 0.01ms !important;
+    }
+}

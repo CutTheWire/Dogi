@@ -1,0 +1,60 @@
+/* 네비게이션 바 스타일 */
+.navbar {
+    background: var(--white);
+    box-shadow: var(--shadow-sm);
+    position: fixed;
+    top: 0;
+    left: 0;
+    right: 0;
+    z-index: 1000;
+}
+
+.nav-container {
+    max-width: 1200px;
+    margin: 0 auto;
+    padding: 0 20px;
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    height: 70px;
+}
+
+.nav-logo h1 {
+    color: var(--primary-blue);
+    font-size: 1.8rem;
+    font-weight: 700;
+}
+
+.nav-menu {
+    display: flex;
+    gap: 20px;
+}
+
+.nav-link {
+    color: var(--gray-600);
+    text-decoration: none;
+    font-weight: 500;
+    padding: 8px 16px;
+    border-radius: var(--radius-sm);
+    transition: background-color var(--transition-normal);
+}
+
+.nav-link:hover {
+    background-color: var(--hover-gray);
+}
+
+/* 반응형 네비게이션 */
+@media (max-width: 768px) {
+    .nav-container {
+        padding: 0 15px;
+    }
+    
+    .nav-menu {
+        gap: 10px;
+    }
+    
+    .nav-link {
+        padding: 6px 12px;
+        font-size: 0.9rem;
+    }
+}
