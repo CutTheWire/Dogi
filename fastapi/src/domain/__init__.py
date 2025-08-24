@@ -1,12 +1,11 @@
-
-from . import (
-    base_config,
-    error_tools,
-    vector_client,
-)
+from . import base_config as BaseConfig
+from . import error_tools as ErrorTools
+from . import model_registry as ModelRegistry
+from . import schema as Schema
 
 __all__ = [
-    "base_config",
-    "error_tools",
-    "vector_client",
+    "BaseConfig",
+    "ErrorTools",
+    "ModelRegistry",
+    "Schema",
 ]

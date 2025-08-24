@@ -1,0 +1,71 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Dogi - 반려견 진단 AI</title>
+    <link rel="stylesheet" href="/static/css/index.css">
+</head>
+<body>
+    <nav class="navbar">
+        <div class="nav-container">
+            <div class="nav-logo">
+                <h1>Dogi</h1>
+            </div>
+            <div class="nav-menu">
+                <a href="#" id="loginBtn" class="nav-link">로그인</a>
+                <a href="#" id="logoutBtn" class="nav-link hidden">로그아웃</a>
+                <a href="#" id="profileBtn" class="nav-link hidden">프로필</a>
+            </div>
+        </div>
+    </nav>
+
+    <main class="main-content">
+        <section class="hero">
+            <div class="hero-content">
+                <h1>반려견을 위한 AI 진단 서비스</h1>
+                <p>우리 강아지의 건강 상태를 AI가 분석해드립니다</p>
+                <button id="startChatBtn" class="cta-button">AI 상담 시작하기</button>
+            </div>
+        </section>
+
+        <section class="features">
+            <div class="features-container">
+                <h2>주요 기능</h2>
+                <div class="feature-grid">
+                    <div class="feature-card">
+                        <div class="feature-icon">🐕</div>
+                        <h3>증상 분석</h3>
+                        <p>반려견의 증상을 설명하면 AI가 분석해드립니다</p>
+                    </div>
+                    <div class="feature-card">
+                        <div class="feature-icon">💬</div>
+                        <h3>실시간 상담</h3>
+                        <p>24시간 언제든지 AI와 실시간 대화가 가능합니다</p>
+                    </div>
+                    <div class="feature-card">
+                        <div class="feature-icon">📋</div>
+                        <h3>상담 기록</h3>
+                        <p>모든 상담 내역을 저장하고 관리할 수 있습니다</p>
+                    </div>
+                </div>
+            </div>
+        </section>
+    </main>
+
+    <!-- 프로필 모달 -->
+    <div id="profileModal" class="modal">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h2>프로필</h2>
+                <span class="close"></span>
+            </div>
+            <div id="profileContent">
+                <!-- 프로필 정보가 여기에 로드됩니다 -->
+            </div>
+        </div>
+    </div>
+
+    <script src="/static/js/index.js"></script>
+</body>
+</html>

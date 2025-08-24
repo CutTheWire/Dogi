@@ -1,0 +1,106 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Dogi - 로그인</title>
+    <link rel="stylesheet" href="/static/css/login.css">
+</head>
+<body>
+    <div class="login-container">
+        <div class="login-card">
+            <div class="login-header">
+                <h1>Dogi</h1>
+                <p>반려견 진단 AI 서비스</p>
+            </div>
+            
+            <form id="loginForm" class="login-form">
+                <div class="form-group">
+                    <label for="user_id" class="form-label">사용자 ID 또는 이메일</label>
+                    <input type="text" id="user_id" name="user_id" class="form-input" required>
+                </div>
+                
+                <div class="form-group">
+                    <label for="password" class="form-label">비밀번호</label>
+                    <input type="password" id="password" name="password" class="form-input" required>
+                </div>
+                
+                <button type="submit" class="btn btn-primary btn-full">로그인</button>
+            </form>
+            
+            <div class="form-footer">
+                <p>계정이 없으신가요? <a href="#" id="registerLink">회원가입</a></p>
+            </div>
+        </div>
+        
+        <!-- 회원가입 모달 -->
+        <div id="registerModal" class="modal">
+            <div class="modal-content register-modal-content">
+                <div class="modal-header">
+                    <h2>회원가입</h2>
+                    <button type="button" class="close-btn" id="closeBtn" aria-label="모달 닫기">
+                        <span aria-hidden="true">&times;</span>
+                    </button>
+                </div>
+                <div class="modal-body">
+                    <form id="registerForm" class="register-form">
+                        <div class="form-group">
+                            <label for="reg_user_id" class="form-label">사용자 ID *</label>
+                            <input type="text" id="reg_user_id" name="user_id" class="form-input" required>
+                        </div>
+                        
+                        <div class="form-group">
+                            <label for="reg_email" class="form-label">이메일 *</label>
+                            <input type="email" id="reg_email" name="email" class="form-input" required>
+                        </div>
+                        
+                        <div class="form-group">
+                            <label for="reg_password" class="form-label">비밀번호 *</label>
+                            <input type="password" id="reg_password" name="password" class="form-input" required>
+                            <small class="form-hint">8자 이상, 대소문자, 숫자, 특수문자 포함</small>
+                        </div>
+                        
+                        <div class="form-group">
+                            <label for="reg_full_name" class="form-label">이름 *</label>
+                            <input type="text" id="reg_full_name" name="full_name" class="form-input" required>
+                        </div>
+                        
+                        <div class="form-group">
+                            <label class="form-label">전화번호</label>
+                            <div class="phone-input-group">
+                                <input type="text" id="reg_phone1" name="phone1" class="form-input phone-input" value="010" readonly title="전화번호 앞자리" placeholder="010">
+                                <span class="phone-separator">-</span>
+                                <input type="text" id="reg_phone2" name="phone2" class="form-input phone-input" maxlength="4" placeholder="0000">
+                                <span class="phone-separator">-</span>
+                                <input type="text" id="reg_phone3" name="phone3" class="form-input phone-input" maxlength="4" placeholder="0000">
+                            </div>
+                        </div>
+                        
+                        <div class="form-group">
+                            <label for="reg_birth_date" class="form-label">생년월일</label>
+                            <input type="date" id="reg_birth_date" name="birth_date" class="form-input">
+                        </div>
+                        
+                        <div class="form-group">
+                            <label for="gender" class="form-label">성별</label>
+                            <select id="gender" name="gender" class="form-select">
+                                <option value="">선택하지 않음</option>
+                                <option value="male">남성</option>
+                                <option value="female">여성</option>
+                                <option value="other">기타</option>
+                            </select>
+                        </div>
+                        
+                        <div class="form-actions">
+                            <button type="submit" class="btn btn-primary btn-full">회원가입</button>
+                            <button type="button" class="btn btn-secondary btn-full" id="cancelBtn">취소</button>
+                        </div>
+                    </form>
+                </div>
+            </div>
+        </div>
+    </div>
+    
+    <script src="/static/js/login.js"></script>
+</body>
+</html>

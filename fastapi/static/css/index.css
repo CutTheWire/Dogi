@@ -1,0 +1,295 @@
+/* Base Styles import */
+@import url('./base/reset.css');
+@import url('./base/variables.css');
+@import url('./base/typography.css');
+
+/* Layout import */
+@import url('./layout/grid.css');
+@import url('./layout/navigation.css');
+
+/* Component import */
+@import url('./components/buttons.css');
+@import url('./components/forms.css');
+@import url('./components/cards.css');
+@import url('./components/modals.css');
+
+/* Utils import */
+@import url('./utils/spacing.css');
+@import url('./utils/display.css');
+@import url('./utils/helpers.css');
+@import url('./utils/responsive.css');
+
+/* 페이지별 커스텀 스타일 */
+body {
+    background: var(--gray-50);
+    min-height: 100vh;
+}
+
+/* 네비게이션 */
+.navbar {
+    background: var(--white);
+    box-shadow: var(--shadow-sm);
+    position: sticky;
+    top: 0;
+    z-index: var(--z-sticky);
+}
+
+.nav-container {
+    max-width: var(--container-xl);
+    margin: 0 auto;
+    padding: 0 var(--spacing-lg);
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    height: 70px;
+}
+
+.nav-logo h1 {
+    color: var(--primary-blue);
+    font-size: var(--font-size-2xl);
+    font-weight: var(--font-weight-bold);
+    margin: 0;
+}
+
+.nav-menu {
+    display: flex;
+    gap: var(--spacing-lg);
+    align-items: center;
+}
+
+.nav-link {
+    color: var(--gray-600);
+    text-decoration: none;
+    font-weight: var(--font-weight-medium);
+    transition: color var(--transition-base);
+    padding: var(--spacing-sm) var(--spacing-md);
+    border-radius: var(--radius-md);
+}
+
+.nav-link:hover {
+    color: var(--primary-blue);
+    background-color: var(--gray-50);
+}
+
+/* 메인 컨텐츠 */
+.main-content {
+    max-width: var(--container-xl);
+    margin: 0 auto;
+    padding: var(--spacing-2xl) var(--spacing-lg);
+}
+
+/* 히어로 섹션 */
+.hero {
+    text-align: center;
+    padding: var(--spacing-3xl) 0;
+    background: var(--primary-gradient);
+    border-radius: var(--radius-2xl);
+    color: var(--white);
+    margin-bottom: var(--spacing-3xl);
+}
+
+.hero-content h1 {
+    font-size: var(--font-size-4xl);
+    font-weight: var(--font-weight-bold);
+    margin-bottom: var(--spacing-lg);
+    line-height: var(--line-height-tight);
+}
+
+.hero-content p {
+    font-size: var(--font-size-xl);
+    margin-bottom: var(--spacing-2xl);
+    opacity: 0.9;
+    line-height: var(--line-height-relaxed);
+}
+
+/* 기능 섹션 */
+.features {
+    padding: var(--spacing-2xl) 0;
+}
+
+.features-container {
+    max-width: var(--container-lg);
+    margin: 0 auto;
+    text-align: center;
+}
+
+.features-container h2 {
+    font-size: var(--font-size-3xl);
+    font-weight: var(--font-weight-bold);
+    color: var(--gray-800);
+    margin-bottom: var(--spacing-2xl);
+}
+
+.feature-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(300px, 1fr));
+    gap: var(--spacing-2xl);
+    margin-top: var(--spacing-2xl);
+}
+
+.feature-card {
+    background: var(--white);
+    padding: var(--spacing-2xl);
+    border-radius: var(--radius-xl);
+    box-shadow: var(--shadow-md);
+    transition: transform var(--transition-base), box-shadow var(--transition-base);
+}
+
+.feature-card:hover {
+    transform: translateY(-4px);
+    box-shadow: var(--shadow-xl);
+}
+
+.feature-icon {
+    font-size: 3rem;
+    margin-bottom: var(--spacing-lg);
+}
+
+.feature-card h3 {
+    font-size: var(--font-size-xl);
+    font-weight: var(--font-weight-semibold);
+    color: var(--gray-800);
+    margin-bottom: var(--spacing-md);
+}
+
+.feature-card p {
+    color: var(--gray-600);
+    line-height: var(--line-height-relaxed);
+}
+
+/* 프로필 모달 */
+.profile-info {
+    text-align: left;
+}
+
+.profile-info h3 {
+    color: var(--gray-800);
+    margin-bottom: var(--spacing-lg);
+    font-size: var(--font-size-xl);
+    font-weight: var(--font-weight-semibold);
+}
+
+.profile-field {
+    display: flex;
+    padding: 20px 30px;
+    justify-content: space-between;
+    align-items: center;
+    border-bottom: 1px solid var(--gray-200);
+}
+
+.profile-field:last-child {
+    border-bottom: none;
+}
+
+.profile-field label {
+    font-weight: var(--font-weight-medium);
+    color: var(--gray-600);
+    min-width: 100px;
+}
+
+.profile-field span {
+    color: var(--gray-800);
+    text-align: right;
+}
+
+/* 반응형 디자인 */
+@media (max-width: 768px) {
+    .nav-container {
+        padding: 0 var(--spacing-md);
+        height: 60px;
+    }
+    
+    .nav-logo h1 {
+        font-size: var(--font-size-xl);
+    }
+    
+    .nav-menu {
+        gap: var(--spacing-md);
+    }
+    
+    .main-content {
+        padding: var(--spacing-xl) var(--spacing-md);
+    }
+    
+    .hero {
+        padding: var(--spacing-2xl) var(--spacing-md);
+        margin-bottom: var(--spacing-2xl);
+    }
+    
+    .hero-content h1 {
+        font-size: var(--font-size-3xl);
+    }
+    
+    .hero-content p {
+        font-size: var(--font-size-lg);
+    }
+    
+    .features-container h2 {
+        font-size: var(--font-size-2xl);
+    }
+    
+    .feature-grid {
+        grid-template-columns: 1fr;
+        gap: var(--spacing-xl);
+    }
+    
+    .feature-card {
+        padding: var(--spacing-xl);
+    }
+}
+
+@media (max-width: 480px) {
+    .nav-container {
+        padding: 0 var(--spacing-sm);
+    }
+    
+    .nav-menu {
+        gap: var(--spacing-sm);
+    }
+    
+    .nav-link {
+        padding: var(--spacing-xs) var(--spacing-sm);
+        font-size: var(--font-size-sm);
+    }
+    
+    .main-content {
+        padding: var(--spacing-lg) var(--spacing-sm);
+    }
+    
+    .hero {
+        padding: var(--spacing-xl) var(--spacing-sm);
+        border-radius: var(--radius-xl);
+    }
+    
+    .hero-content h1 {
+        font-size: var(--font-size-2xl);
+        margin-bottom: var(--spacing-md);
+    }
+    
+    .hero-content p {
+        font-size: var(--font-size-base);
+        margin-bottom: var(--spacing-xl);
+    }
+    
+    .features {
+        padding: var(--spacing-xl) 0;
+    }
+    
+    .feature-card {
+        padding: var(--spacing-lg);
+    }
+    
+    .feature-card h3 {
+        font-size: var(--font-size-lg);
+    }
+    
+    .profile-field {
+        flex-direction: column;
+        align-items: flex-start;
+        gap: var(--spacing-xs);
+    }
+    
+    .profile-field span {
+        text-align: left;
+    }
+}

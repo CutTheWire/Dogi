@@ -1,5 +1,3 @@
-# CUDA 관련 패키지
+# CUDA 관련 패키지 (install_libs.sh에서 처리)
 pynvml
-
-# ExLlamaV2는 PyPI에서 설치
 exllamav2

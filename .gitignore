@@ -415,7 +415,12 @@ marimo/_lsp/
 __marimo__/
 
 # ai 모델 제외
-*.gguf
+fastapi/models/*.gguf
 
 # 테스트 파일 제외
 rag_test_results*.md
+basic_model_test_results*.md
+
+#DB 디렉토리 제외
+mongo/data
+mysql/data

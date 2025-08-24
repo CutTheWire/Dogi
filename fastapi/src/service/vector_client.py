@@ -2,109 +2,177 @@
 ChromaDB 벡터 검색 클라이언트
 RAG(Retrieval-Augmented Generation)를 위한 벡터 검색 기능 제공
 """
-from typing import List, Dict, Any, Optional, Tuple
-import chromadb
+from typing import List, Dict, Any, Optional
 from chromadb.config import Settings
-import logging
 from datetime import datetime
+from pathlib import Path
+from dotenv import load_dotenv
 
-# 로깅 설정
+import chromadb
+import os
+import logging.handlers
+
+from domain import ErrorTools
+
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
 
-class VectorSearchClient:
+BASE_DIR = Path(__file__).resolve().parents[3]
+LOG_DIR = os.path.join(BASE_DIR, "logs")
+os.makedirs(LOG_DIR, exist_ok=True)
+
+class VectorDailyRotating(logging.handlers.BaseRotatingHandler):
+    def __init__(self, dir_path: str, date_format: str = "%Y%m%d", encoding=None):
+        self.dir_path = dir_path
+        self.date_format = date_format
+        self.current_date = datetime.now().strftime(self.date_format)
+        log_file = os.path.join(self.dir_path, f"{self.current_date}_vector.log")
+        super().__init__(log_file, 'a', encoding)
+
+    def shouldRollover(self, record):
+        return datetime.now().strftime(self.date_format) != self.current_date
+
+    def doRollover(self):
+        self.current_date = datetime.now().strftime(self.date_format)
+        self.baseFilename = os.path.join(self.dir_path, f"{self.current_date}_vector.log")
+        if self.stream:
+            self.stream.close()
+            self.stream = self._open()
+
+_formatter = logging.Formatter(
+    '[%(asctime)s] %(levelname)s in %(module)s:\n%(message)s\n',
+    datefmt='%Y-%m-%d %H:%M:%S'
+)
+if not any(isinstance(h, VectorDailyRotating) for h in logger.handlers):
+    _vf = VectorDailyRotating(LOG_DIR, encoding='utf-8')
+    _vf.setFormatter(_formatter)
+    logger.addHandler(_vf)
+
+class VectorSearchHandler:
     """
     ChromaDB를 사용한 벡터 검색 클라이언트
     의료 데이터에서 관련 문서를 검색하여 LLM에게 컨텍스트 제공
     """
     
-    def __init__(self, 
-                    chroma_host: str = "localhost", 
-                    chroma_port: int = 8000,
-                    collection_name: str = "vet_medical_data"
-        ):
+    def __init__(self) -> None:
         """
         벡터 검색 클라이언트 초기화
-        
-        Args:
-            chroma_host: ChromaDB 호스트
-            chroma_port: ChromaDB 포트  
-            collection_name: 컬렉션 이름
         """
-        self.chroma_host = chroma_host
-        self.chroma_port = chroma_port
-        self.collection_name = collection_name
-        self.connection_status = "NOT_CONNECTED"
+        env_file_path = Path(__file__).resolve().parents[1] / ".env"
+        load_dotenv(env_file_path)
+        
+        self.chroma_host = os.getenv('CHROMA_HOST', 'localhost')
+        self.chroma_port = os.getenv('CHROMA_PORT', '8000')
+        self.collection_name = os.getenv('CHROMA_COLLECTION_NAME', 'vet_medical_data')
+        
+        self.client = None
+        self.collection = None
+        self.connection_status = "DISCONNECTED"
+        self.available_departments = []
+        self.available_source_types = []
         self.last_search_info = {}
         
-        # HTTP 로그 숨기기
-        logging.getLogger("httpx").setLevel(logging.ERROR)
-        logging.getLogger("chromadb").setLevel(logging.ERROR)
-        
         try:
-            print(f"🔗 ChromaDB 연결 시도: {chroma_host}:{chroma_port}")
+            self._connect_to_chroma()
+            self._ensure_collection_exists()
+            logger.info(f"VectorSearchHandler 초기화 완료")
+        except Exception as e:
+            logger.error(f"VectorSearchHandler 초기화 실패: {e}")
+            self.client = None
+            self.collection = None
+            self.connection_status = "FAILED"
+
+    def _connect_to_chroma(self):
+        """ChromaDB에 연결"""
+        try:
+            import chromadb
+            from chromadb.config import Settings
+            
+            chroma_url = f"http://{self.chroma_host}:{self.chroma_port}"
+            logger.info(f"ChromaDB 연결 시도: {chroma_url}")
             
             self.client = chromadb.HttpClient(
-                host=chroma_host,
-                port=chroma_port,
-                settings=Settings(
-                    allow_reset=True,
-                    anonymized_telemetry=False
-                )
+                host=self.chroma_host,
+                port=int(self.chroma_port),
+                settings=Settings(anonymized_telemetry=False)
             )
             
-            # 컬렉션 가져오기
-            self.collection = self.client.get_collection(name=collection_name)
-            
-            # 연결 성공 시 정보 수집
-            collection_count = self.collection.count()
+            # 연결 테스트
+            self.client.heartbeat()
             self.connection_status = "CONNECTED"
-            
-            print(f"✅ ChromaDB 연결 성공!")
-            print(f"📊 컬렉션: {collection_name}")
-            print(f"📄 문서 수: {collection_count:,}개")
-            
-            # 컬렉션 메타데이터 정보 수집
-            self._collect_collection_info()
-            
-            logger.info(f"벡터 검색 클라이언트 초기화 완료: {collection_name} ({collection_count:,}개 문서)")
+            logger.info(f"ChromaDB 연결 성공: {chroma_url}")
             
         except Exception as e:
-            self.connection_status = "CONNECTION_FAILED"
-            self.collection = None
-            print(f"❌ ChromaDB 연결 실패: {e}")
+            self.connection_status = "DISCONNECTED"
             logger.error(f"ChromaDB 연결 실패: {e}")
+            raise
+
+    def _ensure_collection_exists(self):
+        """컬렉션이 존재하지 않으면 생성"""
+        try:
+            # 기존 컬렉션 목록 확인
+            collections = self.client.list_collections()
+            collection_names = [col.name for col in collections]
+            
+            if self.collection_name in collection_names:
+                # 기존 컬렉션 사용
+                self.collection = self.client.get_collection(name=self.collection_name)
+                logger.info(f"기존 컬렉션 사용: {self.collection_name}")
+            else:
+                # 새 컬렉션 생성
+                self.collection = self.client.create_collection(
+                    name=self.collection_name,
+                    metadata={"description": "반려동물 의료 데이터 벡터 검색용 컬렉션"}
+                )
+                logger.info(f"새 컬렉션 생성: {self.collection_name}")
+                
+                # 샘플 데이터 추가 (빈 컬렉션 방지)
+                self._add_sample_data()
+            
+            # 컬렉션 정보 수집
+            self._collect_collection_info()
+                
+        except Exception as e:
+            logger.error(f"컬렉션 설정 실패: {e}")
+            raise
 
     def _collect_collection_info(self):
         """컬렉션 정보 수집"""
         try:
-            # 샘플 데이터 조회하여 스키마 파악
-            sample_results = self.collection.peek(limit=5)
-            
-            departments = set()
-            source_types = set()
-            
-            if sample_results.get('metadatas'):
-                for metadata in sample_results['metadatas']:
-                    if metadata:
-                        if 'department' in metadata:
-                            departments.add(metadata['department'])
-                        if 'source_type' in metadata:
-                            source_types.add(metadata['source_type'])
-            
-            self.available_departments = list(departments)
-            self.available_source_types = list(source_types)
-            
-            print(f"🏥 사용 가능한 진료과: {', '.join(self.available_departments)}")
-            print(f"📚 사용 가능한 데이터 타입: {', '.join(self.available_source_types)}")
-            
+            if self.collection:
+                # 샘플 데이터로부터 사용 가능한 옵션 수집
+                sample_results = self.collection.get(limit=100)
+                
+                self.available_departments = []
+                self.available_source_types = []
+                
+                if sample_results['metadatas']:
+                    for metadata in sample_results['metadatas']:
+                        if metadata.get('department'):
+                            dept = metadata['department']
+                            if dept not in self.available_departments:
+                                self.available_departments.append(dept)
+                        
+                        if metadata.get('source_type'):
+                            source = metadata['source_type']
+                            if source not in self.available_source_types:
+                                self.available_source_types.append(source)
+                
+                logger.info(f"사용 가능한 진료과: {self.available_departments}")
+                logger.info(f"사용 가능한 데이터 타입: {self.available_source_types}")
+                
         except Exception as e:
-            print(f"⚠️  컬렉션 정보 수집 실패: {e}")
+            logger.warning(f"컬렉션 정보 수집 실패: {e}")
             self.available_departments = []
             self.available_source_types = []
 
     def get_connection_status(self) -> Dict[str, Any]:
-        """연결 상태 정보 반환"""
+        """
+        연결 상태 정보 반환
+        
+        Returns:
+            Dict: 연결 상태 정보
+        """
         status_info = {
             "status": self.connection_status,
             "host": self.chroma_host,
@@ -125,11 +193,13 @@ class VectorSearchClient:
                 
         return status_info
 
-    def search_relevant_documents(self, 
-                                query: str, 
-                                n_results: int = 5,
-                                department: Optional[str] = None,
-                                source_type: Optional[str] = None) -> List[Dict[str, Any]]:
+    def search_relevant_documents(
+            self, 
+            query: str, 
+            n_results: int = 5,
+            department: Optional[str] = None,
+            source_type: Optional[str] = None
+        ) -> List[Dict[str, Any]]:
         """
         질의와 관련된 문서들을 검색
         
@@ -158,13 +228,13 @@ class VectorSearchClient:
                 "timestamp": search_start_time.isoformat()
             }
             
-            print(f"🔍 벡터 검색 실행:")
-            print(f"   📝 질의: {search_params['query']}")
-            print(f"   🎯 요청 결과 수: {n_results}")
+            print(f"벡터 검색 실행:")
+            print(f"- 질의: {search_params['query']}")
+            print(f"- 요청 결과 수: {n_results}")
             if department:
-                print(f"   🏥 진료과 필터: {department}")
+                print(f"- 진료과 필터: {department}")
             if source_type:
-                print(f"   📚 데이터 타입 필터: {source_type}")
+                print(f"- 데이터 타입 필터: {source_type}")
             
             # 필터 조건 구성
             where_clause = {}
@@ -199,14 +269,6 @@ class VectorSearchClient:
                         'rank': i + 1
                     }
                     formatted_results.append(result)
-                    
-                    # 검색 결과 로깅 (상위 3개만)
-                    if i < 3:
-                        dept = metadata.get('department', 'Unknown')
-                        src_type = metadata.get('source_type', 'Unknown')
-                        content_preview = doc[:80] + "..." if len(doc) > 80 else doc
-                        print(f"   📋 결과 {i+1}: [{dept}] [{src_type}] 유사도:{similarity:.3f}")
-                        print(f"      💭 내용: {content_preview}")
             
             search_end_time = datetime.now()
             search_duration = (search_end_time - search_start_time).total_seconds()
@@ -220,20 +282,21 @@ class VectorSearchClient:
                 "top_similarity": formatted_results[0]['similarity'] if formatted_results else 0
             }
             
-            print(f"   ✅ 검색 완료: {len(formatted_results)}개 문서, {search_duration:.3f}초 소요")
+            print(f"검색 완료: {len(formatted_results)}개 문서, {search_duration:.3f}초 소요")
             
             logger.info(f"검색 완료: {len(formatted_results)}개 문서 발견 (소요시간: {search_duration:.3f}초)")
             return formatted_results
             
         except Exception as e:
             logger.error(f"벡터 검색 중 오류: {e}")
-            print(f"❌ 벡터 검색 오류: {e}")
+            print(f"벡터 검색 오류: {e}")
             return []
     
-    def get_context_for_llm(self, 
-                            query: str, 
-                            max_context_length: int = 2000,
-                            department: Optional[str] = None
+    def get_context_for_llm(
+            self, 
+            query: str, 
+            max_context_length: int = 2000,
+            department: Optional[str] = None
         ) -> str:
         """
         LLM에게 제공할 컨텍스트 문자열 생성
@@ -246,9 +309,9 @@ class VectorSearchClient:
         Returns:
             str: LLM용 컨텍스트 문자열
         """
-        print(f"\n📊 RAG 컨텍스트 생성 시작")
-        print(f"   🎯 질의: {query[:100]}...")
-        print(f"   📏 최대 길이: {max_context_length} 문자")
+        print(f"\nRAG 컨텍스트 생성 시작")
+        print(f"- 질의: {query[:100]}...")
+        print(f"- 최대 길이: {max_context_length} 문자")
         
         # 다양한 소스에서 검색
         corpus_docs = self.search_relevant_documents(
@@ -317,32 +380,42 @@ class VectorSearchClient:
         
         # 검색된 문서가 없는 경우
         if len(corpus_docs) == 0 and len(qa_docs) == 0:
-            no_docs_info = "⚠️ 관련 의료 정보를 벡터 DB에서 찾을 수 없습니다. 일반적인 의료 지식을 바탕으로 답변해드리겠습니다.\n\n"
+            no_docs_info = "관련 의료 정보를 벡터 DB에서 찾을 수 없습니다. 일반적인 의료 지식을 바탕으로 답변해드리겠습니다.\n\n"
             context += no_docs_info
         
-        print(f"   📝 생성된 컨텍스트 길이: {len(context)} 문자")
-        print(f"   📊 활용된 문서: 말뭉치 {len(corpus_docs)}개, Q&A {len(qa_docs)}개")
+        print(f"- 생성된 컨텍스트 길이: {len(context)} 문자")
+        print(f"- 활용된 문서: 말뭉치 {len(corpus_docs)}개, Q&A {len(qa_docs)}개")
         
         return context
     
     def health_check(self) -> bool:
-        """ChromaDB 연결 상태 확인"""
+        """
+        ChromaDB 연결 상태 확인
+        
+        Returns:
+            bool: 연결 상태 (True: 정상, False: 실패)
+        """
         try:
             if self.collection:
                 count = self.collection.count()
-                print(f"✅ ChromaDB 상태 확인: 정상 연결, {count:,}개 문서")
+                print(f"ChromaDB 상태 확인: 정상 연결, {count:,}개 문서")
                 logger.info(f"ChromaDB 연결 정상: {count:,}개 문서")
                 return True
             else:
-                print(f"❌ ChromaDB 상태 확인: 연결 없음")
+                print(f"ChromaDB 상태 확인: 연결 없음")
                 return False
         except Exception as e:
-            print(f"❌ ChromaDB 상태 확인 실패: {e}")
+            print(f"ChromaDB 상태 확인 실패: {e}")
             logger.error(f"ChromaDB 연결 확인 실패: {e}")
             return False
 
     def get_search_statistics(self) -> Dict[str, Any]:
-        """검색 통계 정보 반환"""
+        """
+        검색 통계 정보 반환
+        
+        Returns:
+            Dict: 검색 통계 정보
+        """
         return {
             "connection_info": self.get_connection_status(),
             "last_search": self.last_search_info,
