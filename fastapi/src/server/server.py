@@ -1,4 +1,7 @@
 import uvicorn
+import os
+from pathlib import Path
+
 from fastapi import FastAPI
 from fastapi.openapi.utils import get_openapi
 from fastapi.middleware.cors import CORSMiddleware
@@ -6,7 +9,7 @@ from fastapi.staticfiles import StaticFiles
 from contextlib import asynccontextmanager
 
 from api import Page, v1
-from core import AppState
+from core import AppState, bot_filter
 from domain import ErrorTools
 
 @asynccontextmanager
@@ -21,6 +24,12 @@ async def lifespan(app: FastAPI):
         await AppState.cleanup_handlers()
 
 app = FastAPI(lifespan=lifespan)
+
+# bot.yaml 로드 및 미들웨어 등록
+bot_yaml_path = Path(__file__).resolve().parents[1] / "bot.yaml"
+pattern = bot_filter.load_bot_user_agents(bot_yaml_path)
+action = os.getenv("BOT_FILTER_ACTION", "block")
+app.add_middleware(bot_filter.BotBlockerMiddleware, pattern=pattern, action=action)
 
 # Static 파일 마운트 - Docker 컨테이너 경로에 맞게 수정
 app.mount("/static", StaticFiles(directory="../static"), name="static")
