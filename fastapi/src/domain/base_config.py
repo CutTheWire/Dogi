@@ -1,4 +1,3 @@
-
 from dataclasses import dataclass
 from typing import List, TypedDict
 
@@ -10,13 +9,13 @@ class OpenAIGenerationConfig:
     Args:
         messages (List[dict]): 생성할 메시지 리스트
         max_tokens (int, optional): 최대 토큰 수, 기본값은 1000
-        temperature (float, optional): 온도 설정, 기본값은 0.82
-        top_p (float, optional): 상위 p 설정, 기본값은 0.95
+        temperature (float, optional): 온도 설정, 기본값은 1.0
+        top_p (float, optional): 상위 p 설정, 기본값은 0.9
     """
     messages: List[dict]
     max_tokens: int = 1000
-    temperature: float = 0.82
-    top_p: float = 0.95
+    temperature: float = 1.0
+    top_p: float = 0.9
 
 class BaseConfig(TypedDict):
     """

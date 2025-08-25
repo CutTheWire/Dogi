@@ -6,7 +6,10 @@ import json
 import asyncio
 
 from core import Dependencies
-from llm import Llama
+from llm import (
+    Llama,
+    OpenAI,
+)
 from service import (
     MongoClient,
     JWTService
@@ -61,6 +64,44 @@ def get_current_user_id(authorization: str = Header(..., description="Bearer JWT
         raise HTTPException(
             status_code=401,
             detail=f"Token validation failed: {str(e)}"
+        )
+
+def get_model_info_and_handler(model_id: str, llama_model, openai_model):
+    """
+    model_id를 기반으로 모델 정보와 적절한 핸들러를 반환합니다.
+    
+    Args:
+        model_id: 요청된 모델 ID
+        llama_model: Llama 모델 인스턴스
+        openai_model: OpenAI 모델 인스턴스
+    
+    Returns:
+        tuple: (actual_model_name, model_handler)
+    
+    Raises:
+        HTTPException: 지원하지 않는 모델인 경우
+    """
+    # ModelRegistry에서 모델 정보 조회
+    model_info = ModelRegistry.get_model(model_id)
+    
+    if not model_info:
+        raise HTTPException(
+            status_code=400,
+            detail=f"지원하지 않는 모델입니다: {model_id}"
+        )
+    
+    actual_model_name = model_info.model
+    vendor = model_info.vendor
+    
+    # 벤더에 따라 적절한 모델 핸들러 반환
+    if vendor.lower() == "meta":
+        return actual_model_name, llama_model
+    elif vendor.lower() == "openai":
+        return actual_model_name, openai_model
+    else:
+        raise HTTPException(
+            status_code=400,
+            detail=f"지원하지 않는 벤더입니다: {vendor}"
         )
 
 @llm_router.get("/models", summary="사용 가능한 AI 모델 목록")
@@ -178,36 +219,46 @@ async def add_message(
     session_id: str = Path(..., description="세션 ID"),
     current_user_id: str = Depends(get_current_user_id),
     mongo_handler: MongoClient.MongoDBHandler = Depends(Dependencies.get_mongo_client),
-    llama_model: Llama.LlamaModel = Depends(Dependencies.get_llama_model)
+    llama_model: Llama.LlamaModel = Depends(Dependencies.get_llama_model),
+    openai_model: OpenAI.OpenAIModel = Depends(Dependencies.get_OpenAI_model),
 ):
     """
     LLM 세션에 새로운 메시지를 추가합니다. (스트리밍 응답)
     """
     async def stream_response():
         try:
+            # 모델 정보 및 핸들러 가져오기
+            actual_model_name, model_handler = get_model_info_and_handler(
+                request.model_id, llama_model, openai_model
+            )
+            
+            print(f"    🤖 모델 라우팅: {request.model_id} -> {actual_model_name}")
+            
             # 기존 대화 목록 가져오기
             chat_list = await mongo_handler.get_llm_messages(current_user_id, session_id)
             
             answer_chunks = []
             
-            # 스트리밍으로 응답 생성 및 전송
-            for chunk in llama_model.generate_response_stream(
+            # 선택된 모델로 스트리밍 응답 생성 및 전송
+            for chunk in model_handler.generate_response_stream(
                 input_text=request.content,
                 chat_list=chat_list
             ):
                 answer_chunks.append(chunk)
                 yield chunk
             
-            # 전체 응답 완성 후 MongoDB에 저장
+            # 전체 응답 완성 후 MongoDB에 저장 
             full_answer = "".join(answer_chunks)
             await mongo_handler.add_llm_message(
                 user_id=current_user_id,
                 session_id=session_id,
                 content=request.content,
-                model_id=request.model_id,
+                model_id=request.model_id,  
                 answer=full_answer
             )
             
+        except HTTPException as e:
+            yield f"[ERROR] {e.detail}"
         except Exception as e:
             yield f"[ERROR] 메시지 추가 중 오류: {str(e)}"
     
@@ -263,13 +314,21 @@ async def update_last_message(
     session_id: str = Path(..., description="세션 ID"),
     current_user_id: str = Depends(get_current_user_id),
     mongo_handler: MongoClient.MongoDBHandler = Depends(Dependencies.get_mongo_client),
-    llama_model: Llama.LlamaModel = Depends(Dependencies.get_llama_model)
+    llama_model: Llama.LlamaModel = Depends(Dependencies.get_llama_model),
+    openai_model: OpenAI.OpenAIModel = Depends(Dependencies.get_OpenAI_model),
 ):
     """
     LLM 세션의 마지막 메시지를 수정합니다. (스트리밍 응답)
     """
     async def stream_response():
         try:
+            # 모델 정보 및 핸들러 가져오기
+            actual_model_name, model_handler = get_model_info_and_handler(
+                request.model_id, llama_model, openai_model
+            )
+            
+            print(f"    🤖 모델 라우팅: {request.model_id} -> {actual_model_name}")
+            
             # 기존 대화 목록 가져오기 (마지막 메시지 제외)
             chat_list = await mongo_handler.get_llm_messages(current_user_id, session_id)
             if chat_list:
@@ -277,24 +336,26 @@ async def update_last_message(
             
             answer_chunks = []
             
-            # 스트리밍으로 응답 생성 및 전송
-            for chunk in llama_model.generate_response_stream(
+            # 선택된 모델로 스트리밍 응답 생성 및 전송
+            for chunk in model_handler.generate_response_stream(
                 input_text=request.content,
                 chat_list=chat_list
             ):
                 answer_chunks.append(chunk)
                 yield chunk
             
-            # 전체 응답 완성 후 MongoDB에서 마지막 메시지 수정
+            # 전체 응답 완성 후 MongoDB에서 마지막 메시지 수정 
             full_answer = "".join(answer_chunks)
             await mongo_handler.update_last_llm_message(
                 user_id=current_user_id,
                 session_id=session_id,
                 content=request.content,
-                model_id=request.model_id,
+                model_id=request.model_id,  
                 answer=full_answer
             )
             
+        except HTTPException as e:
+            yield f"[ERROR] {e.detail}"
         except Exception as e:
             yield f"[ERROR] 메시지 수정 중 오류: {str(e)}"
     
@@ -340,13 +401,21 @@ async def regenerate_last_message(
     session_id: str = Path(..., description="세션 ID"),
     current_user_id: str = Depends(get_current_user_id),
     mongo_handler: MongoClient.MongoDBHandler = Depends(Dependencies.get_mongo_client),
-    llama_model: Llama.LlamaModel = Depends(Dependencies.get_llama_model)
+    llama_model: Llama.LlamaModel = Depends(Dependencies.get_llama_model),
+    openai_model: OpenAI.OpenAIModel = Depends(Dependencies.get_OpenAI_model),
 ):
     """
     LLM 세션의 마지막 메시지를 재생성합니다. (스트리밍 응답)
     """
     async def stream_response():
         try:
+            # 모델 정보 및 핸들러 가져오기
+            actual_model_name, model_handler = get_model_info_and_handler(
+                request.model_id, llama_model, openai_model
+            )
+            
+            print(f"    🤖 모델 라우팅: {request.model_id} -> {actual_model_name}")
+            
             # 기존 대화 목록 가져오기
             chat_list = await mongo_handler.get_llm_messages(current_user_id, session_id)
             if not chat_list:
@@ -362,23 +431,25 @@ async def regenerate_last_message(
             
             answer_chunks = []
             
-            # 스트리밍으로 응답 생성 및 전송
-            for chunk in llama_model.generate_response_stream(
+            # 선택된 모델로 스트리밍 응답 생성 및 전송
+            for chunk in model_handler.generate_response_stream(
                 input_text=content,
                 chat_list=chat_list
             ):
                 answer_chunks.append(chunk)
                 yield chunk
             
-            # 전체 응답 완성 후 MongoDB에서 마지막 메시지 재생성
+            # 전체 응답 완성 후 MongoDB에서 마지막 메시지 재생성 
             full_answer = "".join(answer_chunks)
             await mongo_handler.regenerate_last_llm_message(
                 user_id=current_user_id,
                 session_id=session_id,
-                model_id=request.model_id,
+                model_id=request.model_id,  
                 answer=full_answer
             )
             
+        except HTTPException as e:
+            yield f"[ERROR] {e.detail}"
         except Exception as e:
             yield f"[ERROR] 메시지 재생성 중 오류: {str(e)}"
     

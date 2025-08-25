@@ -92,6 +92,35 @@ body {
     align-items: flex-end;
 }
 
+/* 모델 선택 드롭다운 스타일 */
+.model-select {
+    min-width: 120px;
+    max-width: 150px;
+    border: 1px solid var(--gray-200);
+    border-radius: var(--radius-md);
+    padding: 0px 16px;
+    font-size: 14px;
+    font-family: inherit;
+    background: var(--white);
+    color: var(--gray-700);
+    cursor: pointer;
+    transition: border-color 0.2s ease;
+    height: 44px;
+    flex-shrink: 0;
+}
+
+.model-select:focus {
+    outline: none;
+    border-color: var(--primary-blue);
+    box-shadow: 0 0 0 3px rgba(99, 102, 241, 0.1);
+}
+
+.model-select:disabled {
+    background: var(--gray-100);
+    cursor: not-allowed;
+    color: var(--gray-400);
+}
+
 #messageInput {
     flex: 1;
     border: 1px solid var(--gray-200);
@@ -589,9 +618,18 @@ body {
         gap: 8px;
     }
     
+    .model-select {
+        min-width: 80px;
+        max-width: 100px;
+        padding: 10px 12px;
+        font-size: 13px;
+        height: 40px;
+    }
+    
     #messageInput {
         padding: 10px 12px;
         font-size: 16px; /* iOS 줌 방지 */
+        min-height: 40px;
     }
     
     #sendBtn {
@@ -644,6 +682,13 @@ body {
     
     .input-group {
         gap: 6px;
+    }
+    
+    .model-select {
+        min-width: 70px;
+        max-width: 85px;
+        padding: 8px 10px;
+        font-size: 12px;
     }
     
     #sendBtn {

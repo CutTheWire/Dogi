@@ -2,7 +2,10 @@ from fastapi import HTTPException, status, Depends
 from typing import Optional
 
 from . import app_state
-from llm import Llama
+from llm import (
+    Llama,
+    OpenAI,
+)
 from service import (
     MySQLClient,
     MongoClient,
@@ -33,6 +36,18 @@ async def get_mysql_client() -> MySQLClient.MySQLDBHandler:
         )
     return mysql_handler
 
+async def get_vector_client() -> VectorClient.VectorSearchHandler:
+    """
+    Vector 클라이언트 의존성 주입
+    """
+    vector_handler = app_state.get_vector_handler()
+    if vector_handler is None:
+        raise HTTPException(
+            status_code=503,
+            detail="Vector 서비스를 사용할 수 없습니다."
+        )
+    return vector_handler
+
 async def get_llama_model() -> Llama.LlamaModel:
     """
     Llama 모델 의존성 주입
@@ -45,14 +60,14 @@ async def get_llama_model() -> Llama.LlamaModel:
         )
     return llama_model
 
-async def get_vector_client() -> VectorClient.VectorSearchHandler:
+async def get_OpenAI_model() -> OpenAI.OpenAIModel:
     """
-    Vector 클라이언트 의존성 주입
+    OpenAI 모델 의존성 주입
     """
-    vector_handler = app_state.get_vector_handler()
-    if vector_handler is None:
+    OpenAI_model = app_state.get_OpenAI_model()
+    if OpenAI_model is None:
         raise HTTPException(
             status_code=503,
-            detail="Vector 서비스를 사용할 수 없습니다."
+            detail="OpenAI 모델 서비스를 사용할 수 없습니다."
         )
-    return vector_handler
+    return OpenAI_model 
