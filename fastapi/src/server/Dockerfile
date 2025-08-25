@@ -26,6 +26,8 @@ COPY src/core/ /app/src/core/
 
 # 프롬프트/설정 - 올바른 경로로 수정
 COPY prompt/ /app/prompt/
+# bot.yaml 추가 복사
+COPY src/bot.yaml /app/src/bot.yaml
 
 # 환경 설정 (python-libs-init 볼륨 경로 포함)
 ENV PYTHONPATH="/opt/python-libs/lib/python3.11/site-packages:/app:/app/src"

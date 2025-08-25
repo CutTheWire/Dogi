@@ -19,3 +19,4 @@ langchain-chroma
 langchain-core
 jinja2
 python-multipart
+pyyaml>=6.0.1
