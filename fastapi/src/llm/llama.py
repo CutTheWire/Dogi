@@ -3,12 +3,13 @@
 Meta-Llama-3.1-8B-Claude.Q4_0.gguf 모델을 사용하여 대화를 생성하는 데 필요한 모든 기능을 제공합니다.
 ChromaDB는 LangChain으로 연결하고, 모델은 llama_cpp_cuda로 직접 서빙합니다.
 '''
-from typing import Optional, Generator, List, Dict, Any
+from typing import  Generator, List, Dict
 from llama_cpp_cuda import Llama
 
 import os
 import sys
 import json
+import textwrap
 import warnings
 import time
 from queue import Queue
@@ -36,11 +37,10 @@ class VectorRetriever(BaseRetriever):
     """
     VectorSearchHandler를 LangChain Retriever로 래핑 (ChromaDB 연결용)
     """
-    # Pydantic v2 호환성을 위한 필드 선언
     vector_handler: VectorSearchHandler = Field(description="ChromaDB 벡터 검색 핸들러")
     
     class Config:
-        arbitrary_types_allowed = True  # VectorSearchHandler 타입 허용
+        arbitrary_types_allowed = True
     
     def __init__(self, vector_handler: VectorSearchHandler, **kwargs):
         super().__init__(vector_handler=vector_handler, **kwargs)
@@ -96,7 +96,7 @@ class VectorRetriever(BaseRetriever):
             # 유사도 기준으로 정렬
             documents.sort(key=lambda x: x.metadata.get('similarity', 0), reverse=True)
             
-            return documents[:5]  # 상위 5개만 반환
+            return documents[:5]
             
         except Exception as e:
             print(f"    ❌ ChromaDB 벡터 검색 중 오류 발생: {e}")
@@ -106,29 +106,30 @@ def build_rag_prompt_template() -> PromptTemplate:
     """
     RAG를 위한 프롬프트 템플릿 생성 (LangChain 템플릿 형식)
     """
-    template = """<|begin_of_text|><|start_header_id|>system<|end_header_id|>
-당신은 전문적인 반려동물 의료 상담 AI 어시스턴트입니다.
-아래 ChromaDB에서 검색된 의료 정보를 바탕으로 사용자의 질문에 답변해주세요.
+    template = textwrap.dedent("""
+        <|begin_of_text|><|start_header_id|>system<|end_header_id|>
+        당신은 전문적인 반려동물 의료 상담 AI 어시스턴트입니다.
+        아래 ChromaDB에서 검색된 의료 정보를 바탕으로 사용자의 질문에 답변해주세요.
 
-검색된 의료 정보:
-{context}
+        검색된 의료 정보:
+        {context}
 
-대화 기록:
-{chat_history}
+        대화 기록:
+        {chat_history}
 
-지시 사항:
-- 한국어로 정확하고 친절하게 답변하세요
-- 검색된 의료 정보를 우선적으로 활용하세요
-- 의료 정보는 정확하고 신중하게 제공하며, 응급상황이나 심각한 증상의 경우 즉시 전문의 상담을 권유하세요
-- 검색된 정보가 질문과 직접적으로 관련이 없다면 일반적인 의료 지식을 바탕으로 답변하세요
-- 간결하면서도 핵심적인 정보를 포함하도록 하세요<|eot_id|>
+        지시 사항:
+        - 한국어로 정확하고 친절하게 답변하세요
+        - 검색된 의료 정보를 우선적으로 활용하세요
+        - 의료 정보는 정확하고 신중하게 제공하며, 응급상황이나 심각한 증상의 경우 즉시 전문의 상담을 권유하세요
+        - 검색된 정보가 질문과 직접적으로 관련이 없다면 일반적인 의료 지식을 바탕으로 답변하세요
+        - 간결하면서도 핵심적인 정보를 포함하도록 하세요<|eot_id|>
 
-<|start_header_id|>user<|end_header_id|>
-{question}<|eot_id|>
+        <|start_header_id|>user<|end_header_id|>
+        {question}<|eot_id|>
 
-<|start_header_id|>assistant<|end_header_id|>
-"""
-    
+        <|start_header_id|>assistant<|end_header_id|>
+    """).strip()
+        
     return PromptTemplate(
         template=template,
         input_variables=["context", "chat_history", "question"]
@@ -217,13 +218,13 @@ class LlamaModel:
             elif source_type in ['qa_answer', 'qa_question']:
                 qa_docs.append(doc)
             else:
-                corpus_docs.append(doc)  # 기본값으로 말뭉치에 포함
+                corpus_docs.append(doc)
         
         # 말뭉치 문서 포맷팅
         if corpus_docs:
             formatted_docs.append("=== 관련 의료 정보 (말뭉치 데이터) ===")
             for i, doc in enumerate(corpus_docs, 1):
-                content = doc.page_content[:500]  # 내용 제한
+                content = doc.page_content[:500]
                 metadata = doc.metadata
                 
                 doc_info = f"[문서 {i}]"
@@ -238,7 +239,7 @@ class LlamaModel:
         if qa_docs:
             formatted_docs.append("\n=== 관련 질의응답 (Q&A 데이터) ===")
             for i, doc in enumerate(qa_docs, 1):
-                content = doc.page_content[:300]  # Q&A는 더 짧게
+                content = doc.page_content[:300]
                 metadata = doc.metadata
                 
                 doc_info = f"[Q&A {i}]"
@@ -259,7 +260,7 @@ class LlamaModel:
             return "이전 대화 없음"
         
         formatted_history = []
-        for chat in chat_list[-3:]:  # 최근 3개 대화만 포함
+        for chat in chat_list[-3:]:
             user_msg = chat.get("content", chat.get("input_data", ""))
             ai_msg = chat.get("answer", chat.get("output_data", ""))
             
@@ -406,29 +407,32 @@ class LlamaModel:
             current_time = datetime.now().strftime("%Y년 %m월 %d일 %H시 %M분")
             
             # 시스템 프롬프트
-            system_prompt = f"""당신은 전문적인 반려동물 의료 상담 AI 어시스턴트입니다.
-현재 시간: {current_time}
+            system_prompt = textwrap.dedent(f"""
+                당신은 전문적인 반려동물 의료 상담 AI 어시스턴트입니다.
+                현재 시간: {current_time}
 
-지시 사항:
-- 한국어로 정확하고 친절하게 답변하세요
-- 의료 정보는 정확하고 신중하게 제공하며, 응급상황이나 심각한 증상의 경우 즉시 전문의 상담을 권유하세요
-- 간결하면서도 핵심적인 정보를 포함하도록 하세요"""
+                지시 사항:
+                - 한국어로 정확하고 친절하게 답변하세요
+                - 의료 정보는 정확하고 신중하게 제공하며, 응급상황이나 심각한 증상의 경우 즉시 전문의 상담을 권유하세요
+                - 간결하면서도 핵심적인 정보를 포함하도록 하세요
+            """).strip()
 
             # 대화 기록 포맷팅
             chat_history = self._format_chat_history(chat_list)
             
             # 전체 프롬프트 구성
-            prompt = f"""<|begin_of_text|><|start_header_id|>system<|end_header_id|>
-{system_prompt}
+            prompt = textwrap.dedent(f"""
+                <|begin_of_text|><|start_header_id|>system<|end_header_id|>
+                {system_prompt}
 
-대화 기록:
-{chat_history}<|eot_id|>
+                대화 기록:
+                {chat_history}<|eot_id|>
 
-<|start_header_id|>user<|end_header_id|>
-{input_text}<|eot_id|>
+                <|start_header_id|>user<|end_header_id|>
+                {input_text}<|eot_id|>
 
-<|start_header_id|>assistant<|end_header_id|>
-"""
+                <|start_header_id|>assistant<|end_header_id|>
+            """).strip()
             
             # llama_cpp_cuda 스트리밍 설정
             config = BaseConfig.LlamaGenerationConfig(
@@ -442,7 +446,7 @@ class LlamaModel:
             # llama_cpp_cuda 스트리밍 생성
             for text_chunk in self.create_streaming_completion(config):
                 yield text_chunk
-            
+        
         except Exception as e:
             print(f"❌ 순수 llama_cpp_cuda 스트리밍 모드 응답 생성 실패: {e}")
             yield f"죄송합니다. 응답 생성 중 오류가 발생했습니다: {str(e)}"
@@ -503,7 +507,7 @@ class LlamaModel:
         token_count = 0
         while True:
             text = self.response_queue.get()
-            if text is None:  # 스트림 종료
+            if text is None:
                 break
             token_count += 1
             yield text

@@ -10,8 +10,9 @@ class ModelRegistryLoadError(RuntimeError):
 
 class ModelInfo(BaseModel):
     id: str
-    vendor: str
     name: str
+    vendor: str
+    model: str  # 이 필드가 누락되어 있었습니다
     description: str
 
 _JSON_PATH = Path(__file__).parent / "models" / "models.json"
@@ -29,7 +30,7 @@ def _load_json() -> Dict[str, ModelInfo]:
         with _JSON_PATH.open("r", encoding="utf-8") as f:
             raw = json.load(f) or {}
     except json.JSONDecodeError as e:
-        raise ModelRegistryLoadError(f"Invalid JSON format in { _JSON_PATH }: {e}") from e
+        raise ModelRegistryLoadError(f"Invalid JSON format in {_JSON_PATH}: {e}") from e
 
     items = raw.get("models", [])
     if not isinstance(items, list):

@@ -9,6 +9,7 @@ const sessionsList = document.getElementById('sessionsList');
 const chatMessages = document.getElementById('chatMessages');
 const messageInput = document.getElementById('messageInput');
 const sendBtn = document.getElementById('sendBtn');
+const modelSelect = document.getElementById('modelSelect');
 const sessionsModal = document.getElementById('sessionsModal');
 const closeSessionsModal = document.getElementById('closeSessionsModal');
 
@@ -18,6 +19,7 @@ let isStreaming = false;
 let currentMessages = []; // 현재 세션의 메시지 목록
 let isEditMode = false; // 수정 모드 여부
 let originalMessage = ''; // 원본 메시지 저장
+let availableModels = []; // 사용 가능한 모델 목록
 
 // 마크다운 설정
 marked.setOptions({
@@ -84,6 +86,48 @@ function copyCode(codeId) {
             console.error('복사 실패:', err);
         });
     }
+}
+
+// 모델 목록 로드
+async function loadModels() {
+    try {
+        const response = await apiRequest('/llm/models');
+        availableModels = response.models || [];
+        
+        // 모델 선택 드롭다운 업데이트
+        modelSelect.innerHTML = '';
+        
+        if (availableModels.length === 0) {
+            modelSelect.innerHTML = '<option value="">사용 가능한 모델 없음</option>';
+            modelSelect.disabled = true;
+            return;
+        }
+        
+        // 모델 옵션 추가
+        availableModels.forEach(model => {
+            const option = document.createElement('option');
+            option.value = model.id;
+            option.textContent = `${model.vendor} ${model.model}`;
+            modelSelect.appendChild(option);
+        });
+        
+        // 기본 모델 선택 (첫 번째 모델)
+        if (availableModels.length > 0) {
+            modelSelect.value = availableModels[0].id;
+        }
+        
+        modelSelect.disabled = false;
+        
+    } catch (error) {
+        console.error('Models load error:', error);
+        modelSelect.innerHTML = '<option value="">모델 로드 실패</option>';
+        modelSelect.disabled = true;
+    }
+}
+
+// 선택된 모델 ID 가져오기
+function getSelectedModel() {
+    return modelSelect.value || 'llama3'; // 기본값
 }
 
 // URL에서 세션 ID 가져오기
@@ -493,11 +537,13 @@ function cancelEditMode() {
 // 메시지 전송/재전송
 async function sendMessage() {
     const content = messageInput.value.trim();
-    if (!content || isStreaming) return;
+    const selectedModel = getSelectedModel();
+    
+    if (!content || isStreaming || !selectedModel) return;
     
     if (isEditMode) {
         // 재전송 모드
-        await resendMessage(content);
+        await resendMessage(content, selectedModel);
     } else {
         // 일반 전송 모드
         // 세션이 없으면 새로 생성
@@ -510,25 +556,26 @@ async function sendMessage() {
         addMessage(content, 'user');
         messageInput.value = '';
         
-        await sendNewMessage(content);
+        await sendNewMessage(content, selectedModel);
     }
 }
 
 // 새 메시지 전송
-async function sendNewMessage(content) {
+async function sendNewMessage(content, modelId) {
     // 타이핑 인디케이터 표시
     addTypingIndicator();
     
     try {
         isStreaming = true;
         sendBtn.disabled = true;
+        modelSelect.disabled = true;
         
         // 스트리밍 요청
         const response = await streamingRequest(`/llm/sessions/${currentSessionId}/messages`, {
             method: 'POST',
             body: JSON.stringify({
                 content: content,
-                model_id: 'llama3'
+                model_id: modelId
             })
         });
         
@@ -577,17 +624,19 @@ async function sendNewMessage(content) {
     } finally {
         isStreaming = false;
         sendBtn.disabled = false;
+        modelSelect.disabled = false;
     }
 }
 
 // 메시지 재전송
-async function resendMessage(content) {
+async function resendMessage(content, modelId) {
     // 타이핑 인디케이터 표시
     addTypingIndicator();
     
     try {
         isStreaming = true;
         sendBtn.disabled = true;
+        modelSelect.disabled = true;
         
         // 마지막 AI 메시지 제거
         const lastAiMessage = chatMessages.querySelector('.ai-message:last-child');
@@ -600,7 +649,7 @@ async function resendMessage(content) {
             method: 'PATCH',
             body: JSON.stringify({
                 content: content,
-                model_id: 'llama3',
+                model_id: modelId,
                 message_idx: currentMessages.length
             })
         });
@@ -654,6 +703,7 @@ async function resendMessage(content) {
     } finally {
         isStreaming = false;
         sendBtn.disabled = false;
+        modelSelect.disabled = false;
     }
 }
 
@@ -702,6 +752,9 @@ async function createNewSession() {
 async function regenerateLastMessage() {
     if (!currentSessionId || currentMessages.length === 0 || isStreaming) return;
     
+    const selectedModel = getSelectedModel();
+    if (!selectedModel) return;
+    
     // 마지막 AI 메시지 제거
     const lastAiMessage = chatMessages.querySelector('.ai-message:last-child');
     if (lastAiMessage && !lastAiMessage.classList.contains('welcome-message')) {
@@ -713,12 +766,13 @@ async function regenerateLastMessage() {
     
     try {
         isStreaming = true;
+        modelSelect.disabled = true;
         
         // 재생성 요청
         const response = await streamingRequest(`/llm/sessions/${currentSessionId}/regenerate`, {
             method: 'POST',
             body: JSON.stringify({
-                model_id: 'llama3'
+                model_id: selectedModel
             })
         });
         
@@ -763,6 +817,7 @@ async function regenerateLastMessage() {
         console.error('Regenerate error:', error);
     } finally {
         isStreaming = false;
+        modelSelect.disabled = false;
     }
 }
 
@@ -794,6 +849,9 @@ async function initializePage() {
         window.location.href = '/login';
         return;
     }
+    
+    // 모델 목록 로드
+    await loadModels();
     
     const sessionId = getSessionIdFromURL();
     
