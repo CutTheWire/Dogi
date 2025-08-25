@@ -1,5 +1,8 @@
 from typing import Optional
-from llm import Llama
+from llm import (
+    Llama,
+    OpenAI,
+)
 from service import (
     MySQLClient,
     MongoClient,
@@ -14,13 +17,14 @@ RESET = "\033[0m"
 mongo_handler: Optional[MongoClient.MongoDBHandler] = None
 mysql_handler: Optional[MySQLClient.MySQLDBHandler] = None
 llama_model: Optional[Llama.LlamaModel] = None
+OpenAI_model: Optional[OpenAI.OpenAIModel] = None
 vector_handler: Optional[VectorClient.VectorSearchHandler] = None
 
 async def initialize_handlers():
     """
     애플리케이션 시작 시 모든 DB 핸들러 및 LLM 모델 초기화
     """
-    global mongo_handler, mysql_handler, llama_model, vector_handler
+    global mongo_handler, mysql_handler, llama_model, OpenAI_model, vector_handler
 
     # Vector DB 핸들러 초기화 (가장 먼저)
     if vector_handler is None:
@@ -62,6 +66,15 @@ async def initialize_handlers():
         except Exception as e:
             print(f"{RED}ERROR{RESET}:     Llama 모델 초기화 오류 발생: {str(e)}")
             llama_model = None
+    
+    # OpenAI 모델 초기화
+    if OpenAI_model is None:
+        try:
+            OpenAI_model = OpenAI.OpenAIModel()
+            print(f"{GREEN}INFO{RESET}:     OpenAI 모델이 성공적으로 초기화되었습니다.")
+        except Exception as e:
+            print(f"{RED}ERROR{RESET}:     OpenAI 모델 초기화 오류 발생: {str(e)}")
+            OpenAI_model = None
 
 async def cleanup_handlers():
     """
@@ -113,3 +126,12 @@ def get_llama_model() -> Optional[Llama.LlamaModel]:
         Optional[Llama.LlamaModel]: Llama 모델 인스턴스
     """
     return llama_model
+
+def get_OpenAI_model() -> Optional[OpenAI.OpenAIModel]:
+    """
+    OpenAI 모델 인스턴스를 반환하는 함수
+    
+    Returns:
+        Optional[OpenAI.OpenAIModel]: OpenAI 모델 인스턴스
+    """
+    return OpenAI_model
