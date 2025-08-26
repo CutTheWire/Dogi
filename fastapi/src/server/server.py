@@ -31,7 +31,7 @@ pattern = bot_filter.load_bot_user_agents(bot_yaml_path)
 action = os.getenv("BOT_FILTER_ACTION", "block")
 app.add_middleware(bot_filter.BotBlockerMiddleware, pattern=pattern, action=action)
 
-# Static 파일 마운트 - Docker 컨테이너 경로에 맞게 수정
+# Static 파일 마운트
 app.mount("/static", StaticFiles(directory="../static"), name="static")
 
 def custom_openapi():
@@ -40,7 +40,7 @@ def custom_openapi():
     
     openapi_schema = get_openapi(
         title="Dogi FastAPI",
-        version="v1.0.*",
+        version="v1.1.*",
         summary="반려견 진단 에이전트 API",
         routes=app.routes,
         description=(
