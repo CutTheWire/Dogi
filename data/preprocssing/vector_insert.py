@@ -187,7 +187,7 @@ def print_scan_summary(stats: Dict[str, Any]):
 class VetDataVectorizer:
     def __init__(self, 
             chroma_host: str = "localhost", 
-            chroma_port: int = 8000,
+            chroma_port: int = 7999,
             model_name: str = "sentence-transformers/paraphrase-multilingual-MiniLM-L12-v2"
         ):
         """
@@ -704,7 +704,7 @@ if __name__ == "__main__":
     print("\n 벡터화 시작...")
     vectorizer = VetDataVectorizer(
         chroma_host="localhost",  # Docker 컨테이너 실행 시 "chromadb"로 변경
-        chroma_port=8000
+        chroma_port=7999
     )
     
     # 3단계: 파일 처리 (깔끔한 인라인 진행률 표시)

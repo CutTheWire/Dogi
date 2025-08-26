@@ -18,7 +18,7 @@ logger = logging.getLogger(__name__)
 class VectorDBManager:
     def __init__(self, 
                 chroma_host: str = "localhost", 
-                chroma_port: int = 8000):
+                chroma_port: int = 7999):
         """
         벡터 데이터베이스 관리 클래스
         
@@ -262,7 +262,7 @@ def main():
     try:
         db_manager = VectorDBManager(
             chroma_host="localhost",
-            chroma_port=8000
+            chroma_port=7999
         )
     except Exception as e:
         print(f"❌ 초기화 실패: {e}")

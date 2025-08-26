@@ -1,9 +1,9 @@
 services:
-  python-libs-init:
+  python-libs-init-dogi:
     build:
       context: ./fastapi
       dockerfile: src/Dockerfile.libs
-    container_name: python-libs-init
+    container_name: python-libs-init-dogi
     volumes:
       - python-libs:/opt/python-libs
     command: >
@@ -49,7 +49,7 @@ services:
     image: chromadb/chroma:latest
     container_name: chromadb
     ports:
-      - "8000:8000"
+      - "7999:8000"
     volumes:
       - chroma-data:/data
     environment:
@@ -63,7 +63,7 @@ services:
     build:
       context: ./mongo
     ports:
-      - "27017:27017"
+      - "27018:27018"
     environment:
       MONGO_INITDB_ROOT_USERNAME: ${MONGO_ADMIN_USER}
       MONGO_INITDB_ROOT_PASSWORD: ${MONGO_ADMIN_PASSWORD}
@@ -89,7 +89,7 @@ services:
       - ./fastapi/static:/app/static:ro
       - ./.env:/app/src/.env:ro
     depends_on:
-      - python-libs-init
+      - python-libs-init-dogi
       - chromadb
       - mongodb
       - mysql
@@ -99,9 +99,10 @@ services:
           memory: 8G
           cpus: '4.0'
         reservations:
-          memory: 4G
+          memory: 4G      # 최소 메모리 보장
           devices:
             - driver: nvidia
+              device_ids: [GPU-eeda57d0-cf83-ba04-0355-41d7d20ffd54]
               capabilities: [gpu]
     environment:
       - TZ=Asia/Seoul  # 한국 시간대 설정

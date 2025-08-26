@@ -29,7 +29,7 @@ COPY prompt/ /app/prompt/
 # bot.yaml 추가 복사
 COPY src/bot.yaml /app/src/bot.yaml
 
-# 환경 설정 (python-libs-init 볼륨 경로 포함)
+# 환경 설정 (python-libs-init-dogi 볼륨 경로 포함)
 ENV PYTHONPATH="/opt/python-libs/lib/python3.11/site-packages:/app:/app/src"
 ENV PYTHONUNBUFFERED=1
 ENV PYTHONDONTWRITEBYTECODE=1

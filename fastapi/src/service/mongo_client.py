@@ -22,7 +22,7 @@ class MongoDBHandler:
             
             # 환경 변수에서 MongoDB 연결 정보 가져오기
             mongo_host = os.getenv("MONGO_HOST")
-            mongo_port = os.getenv("MONGO_PORT", "27017")
+            mongo_port = os.getenv("MONGO_PORT", "27018")
             mongo_user = os.getenv("MONGO_ADMIN_USER")
             mongo_password = os.getenv("MONGO_ADMIN_PASSWORD")
             mongo_db = os.getenv("MONGO_DATABASE")

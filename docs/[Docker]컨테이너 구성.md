@@ -2,15 +2,15 @@
 
 ## 컨테이너 상세 구성
 
-### 1. python-libs-init
+### 1. python-libs-init-dogi
 **목적**: Python 라이브러리 사전 설치 및 초기화
 
 ```yaml
-python-libs-init:
+python-libs-init-dogi:
   build:
     context: ./fastapi
     dockerfile: src/Dockerfile.libs
-  container_name: python-libs-init
+  container_name: python-libs-init-dogi
   volumes:
     - python-libs:/opt/python-libs
   command: >
@@ -95,7 +95,7 @@ chromadb:
   image: chromadb/chroma:latest
   container_name: chromadb
   ports:
-    - "8000:8000"
+    - "7999:7999"
   volumes:
     - chroma-data:/data
   environment:
@@ -126,7 +126,7 @@ mongodb:
   build:
     context: ./mongo
   ports:
-    - "27017:27017"
+    - "27018:27018"
   environment:
     MONGO_INITDB_ROOT_USERNAME: ${MONGO_ADMIN_USER}
     MONGO_INITDB_ROOT_PASSWORD: ${MONGO_ADMIN_PASSWORD}
@@ -170,7 +170,7 @@ fastapi:
     - ./fastapi/logs:/app/logs:rw
     - ./.env:/app/src/.env:ro
   depends_on:
-    - python-libs-init
+    - python-libs-init-dogi
     - chromadb
     - mongodb
     - mysql
@@ -229,7 +229,7 @@ volumes:
 
 ### python-libs
 - **목적**: Python 라이브러리 공유
-- **사용**: python-libs-init ↔ fastapi
+- **사용**: python-libs-init-dogi ↔ fastapi
 - **내용**: AI/ML 라이브러리, CUDA 지원 패키지
 - **특징**: 초기화 후 재사용, 빌드 시간 단축
 
@@ -247,13 +247,13 @@ volumes:
 ### 포트 매핑
 - **80**: FastAPI 서버 (HTTP) - 메인 API 엔드포인트
 - **3306**: MySQL 데이터베이스 - 사용자 데이터
-- **8000**: ChromaDB API - 벡터 검색
-- **27017**: MongoDB - 세션 데이터
+- **7999**: ChromaDB API - 벡터 검색
+- **27018**: MongoDB - 세션 데이터
 
 ### 내부 통신
 - 모든 컨테이너는 기본 Docker 네트워크를 통해 통신
 - 서비스 이름으로 내부 DNS 해석
-- FastAPI에서 `mysql:3306`, `chromadb:8000`, `mongodb:27017`로 접근
+- FastAPI에서 `mysql:3306`, `chromadb:7999`, `mongodb:27018`로 접근
 
 ### API 엔드포인트
 - **Auth API**: `/v1/auth/*` - 사용자 인증 및 프로필 관리
@@ -277,7 +277,7 @@ volumes:
 
 ### ChromaDB
 - `CHROMA_HOST=chromadb`: ChromaDB 호스트
-- `CHROMA_PORT=8000`: ChromaDB 포트
+- `CHROMA_PORT=7999`: ChromaDB 포트
 - `CHROMA_COLLECTION_NAME=vet_medical_data`: 컬렉션 이름
 
 ### MongoDB
@@ -285,7 +285,7 @@ volumes:
 - `MONGO_ADMIN_PASSWORD=760329`: 관리자 비밀번호
 - `MONGO_DATABASE=dogi`: 사용할 데이터베이스 이름
 - `MONGO_HOST=mongodb`: MongoDB 호스트
-- `MONGO_PORT=27017`: MongoDB 포트
+- `MONGO_PORT=27018`: MongoDB 포트
 
 ### MySQL
 - `MYSQL_ROOT_USER=root`: 루트 사용자명
@@ -318,7 +318,7 @@ build_docker.bat -n -n
 4. **선택적 이미지 정리**: 댕글링 이미지 및 빌드 캐시 정리
 5. **Python 라이브러리 볼륨 관리**: 재설치 여부 선택
 6. **베이스 이미지 빌드**: `dogi-base:latest` 생성
-7. **라이브러리 초기화**: `python-libs-init` 실행 (필요시)
+7. **라이브러리 초기화**: `python-libs-init-dogi` 실행 (필요시)
 8. **애플리케이션 서비스 빌드**: 병렬 빌드로 성능 최적화
 9. **서비스 실행**: 의존성 순서에 따른 시작
 10. **상태 확인**: 서비스 정상 동작 확인
@@ -336,7 +336,7 @@ docker-compose logs -f fastapi
 docker-compose restart fastapi
 
 # Python 라이브러리 재설치
-docker-compose up python-libs-init
+docker-compose up python-libs-init-dogi
 ```
 
 ## 개발 및 운영
@@ -398,7 +398,7 @@ docker run --rm -v dogi_python-libs:/libs -v $(pwd):/backup ubuntu tar czf /back
    - `deploy.resources.limits.memory` 값 증가
 
 2. **라이브러리 설치 실패**
-   - `python-libs-init` 컨테이너 로그 확인
+   - `python-libs-init-dogi` 컨테이너 로그 확인
    - CUDA 버전 호환성 확인
    - 볼륨 삭제 후 재설치
 
@@ -431,7 +431,7 @@ tail -f ./mongo/logs/mongodb.log
 docker-compose logs chromadb
 
 # Python 라이브러리 설치 로그
-docker-compose logs python-libs-init
+docker-compose logs python-libs-init-dogi
 ```
 
 ### 디버깅 팁
@@ -446,7 +446,7 @@ docker-compose logs python-libs-init
 2. **네트워크 연결 테스트**:
    ```bash
    docker-compose exec fastapi ping mysql
-   docker-compose exec fastapi curl chromadb:8000/api/v1/heartbeat
+   docker-compose exec fastapi curl chromadb:7999/api/v1/heartbeat
    ```
 
 3. **볼륨 상태 확인**:

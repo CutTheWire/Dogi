@@ -62,7 +62,7 @@ class VectorSearchHandler:
         load_dotenv(env_file_path)
         
         self.chroma_host = os.getenv('CHROMA_HOST', 'localhost')
-        self.chroma_port = os.getenv('CHROMA_PORT', '8000')
+        self.chroma_port = os.getenv('CHROMA_PORT', '7999')
         self.collection_name = os.getenv('CHROMA_COLLECTION_NAME', 'vet_medical_data')
         
         self.client = None

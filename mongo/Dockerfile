@@ -10,7 +10,7 @@ ENV TZ=Asia/Seoul
 COPY mongod.conf /etc/mongod.conf
 
 # MongoDB 포트를 오픈합니다.
-EXPOSE 27017
+EXPOSE 27018
 
 # 컨테이너 시작 시 MongoDB를 실행하도록 설정합니다.
 CMD ["mongod", "--config", "/etc/mongod.conf"]

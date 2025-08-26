@@ -117,7 +117,7 @@ echo.
 REM 8. Python 라이브러리 초기화 (필요시에만)
 if "%REBUILD_LIBS%"=="true" (
     echo [INFO] Python 라이브러리 초기화 중...
-    docker-compose up python-libs-init
+    docker-compose up python-libs-init-dogi
     if errorlevel 1 (
         echo [ERROR] Python 라이브러리 초기화 실패. 종료합니다.
         exit /b 1
