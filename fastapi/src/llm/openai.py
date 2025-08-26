@@ -253,7 +253,7 @@ class OpenAIModel:
         if corpus_docs:
             formatted_docs.append("=== 관련 의료 정보 (말뭉치 데이터) ===")
             for i, doc in enumerate(corpus_docs, 1):
-                content = doc.page_content[:500]
+                content = doc.page_content
                 metadata = doc.metadata
                 
                 doc_info = f"[문서 {i}]"
@@ -268,7 +268,7 @@ class OpenAIModel:
         if qa_docs:
             formatted_docs.append("\n=== 관련 질의응답 (Q&A 데이터) ===")
             for i, doc in enumerate(qa_docs, 1):
-                content = doc.page_content[:300]
+                content = doc.page_content
                 metadata = doc.metadata
                 
                 doc_info = f"[Q&A {i}]"
@@ -396,7 +396,7 @@ class OpenAIModel:
                 # OpenAI API 설정
                 config = BaseConfig.OpenAIGenerationConfig(
                     messages=messages,
-                    max_tokens=1000,
+                    max_tokens=4096,
                     temperature=1.0,
                 )
                 
@@ -433,7 +433,7 @@ class OpenAIModel:
             # OpenAI API 설정
             config = BaseConfig.OpenAIGenerationConfig(
                 messages=messages,
-                max_tokens=1000,
+                max_tokens=4096,
                 temperature=1.0,
             )
             

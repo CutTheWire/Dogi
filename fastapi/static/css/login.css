@@ -56,10 +56,31 @@ body {
     padding: 30px;
 }
 
-/* 비밀번호 입력 필드 글자색 설정 */
-#password,
-#reg_password {
+/* 회원가입 모달의 모든 입력 필드 글자색을 흰색으로 설정 */
+#reg_user_id,
+#reg_email,
+#reg_password,
+#reg_full_name,
+#reg_phone1,
+#reg_phone2,
+#reg_phone3,
+#reg_birth_date,
+#gender {
+    color: #ffffff !important;
+    caret-color: #ffffff !important;
+}
+
+/* 로그인 페이지 입력 필드 글자색 설정 */
+#user_id,
+#password {
     color: #ffffff;
+    caret-color: #ffffff;
+}
+
+/* select 옵션 스타일링 (브라우저별 호환성을 위해) */
+#gender option {
+    color: #000000;
+    background-color: #ffffff;
 }
 
 /* 로그인 페이지에서 모달 외부 클릭 방지 */

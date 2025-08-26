@@ -224,7 +224,7 @@ class LlamaModel:
         if corpus_docs:
             formatted_docs.append("=== 관련 의료 정보 (말뭉치 데이터) ===")
             for i, doc in enumerate(corpus_docs, 1):
-                content = doc.page_content[:500]
+                content = doc.page_content
                 metadata = doc.metadata
                 
                 doc_info = f"[문서 {i}]"
@@ -239,7 +239,7 @@ class LlamaModel:
         if qa_docs:
             formatted_docs.append("\n=== 관련 질의응답 (Q&A 데이터) ===")
             for i, doc in enumerate(qa_docs, 1):
-                content = doc.page_content[:300]
+                content = doc.page_content
                 metadata = doc.metadata
                 
                 doc_info = f"[Q&A {i}]"
@@ -370,7 +370,7 @@ class LlamaModel:
                 # llama_cpp_cuda로 스트리밍 생성
                 config = BaseConfig.LlamaGenerationConfig(
                     prompt=prompt,
-                    max_tokens=1024,
+                    max_tokens=4096,
                     temperature=0.7,
                     top_p=0.9,
                     stop=["<|eot_id|>"]
@@ -437,7 +437,7 @@ class LlamaModel:
             # llama_cpp_cuda 스트리밍 설정
             config = BaseConfig.LlamaGenerationConfig(
                 prompt=prompt,
-                max_tokens=1024,
+                max_tokens=4096,
                 temperature=0.7,
                 top_p=0.9,
                 stop=["<|eot_id|>"]

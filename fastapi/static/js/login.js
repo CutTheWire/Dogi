@@ -71,13 +71,16 @@ async function apiRequest(url, options = {}) {
             },
             ...options
         });
-        
+
         const data = await response.json();
-        
+
         if (!response.ok) {
-            throw new Error(data.detail || '요청 처리 중 오류가 발생했습니다.');
+            // 에러 객체에 응답 정보 추가
+            const error = new Error(data.detail || '요청 처리 중 오류가 발생했습니다.');
+            error.response = { status: response.status, data };
+            throw error;
         }
-        
+
         return data;
     } catch (error) {
         console.error('API Error:', error);
@@ -225,7 +228,22 @@ async function handleRegister(event) {
         
     } catch (error) {
         console.error('Register error:', error);
-        alert('회원가입에 실패했습니다. 다시 시도해주세요.');
+
+        let errorMessage = '회원가입에 실패했습니다.';
+
+        // FastAPI validation error (422) 처리
+        if (error && error.response && error.response.status === 422 && error.response.data && error.response.data.detail) {
+            // detail이 배열일 경우 각 메시지 추출
+            errorMessage = error.response.data.detail
+                .map(item => item.msg || item.message || JSON.stringify(item))
+                .join('\n');
+        } else if (error && error.detail) {
+            errorMessage = error.detail;
+        } else if (error && error.message) {
+            errorMessage = error.message;
+        }
+
+        alert(errorMessage);
     }
 }
 
